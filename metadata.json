@@ -1,0 +1,6 @@
+{
+  "name": "Manajemen Toko HP & Mutasi BCA",
+  "description": "Website manajemen toko HP dengan fitur pencatatan barang masuk/keluar, pengeluaran, transaksi penjualan, dan parsing otomatis laporan mutasi rekening BCA menggunakan AI.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
