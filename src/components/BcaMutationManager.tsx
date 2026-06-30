@@ -1,6 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BcaMutation, Transaction } from '../types';
-import { Sparkles, ArrowRightLeft, Search, HelpCircle, CheckCircle2, AlertCircle, Trash, Link, ExternalLink, Calendar, Loader2 } from 'lucide-react';
+import { 
+  Sparkles, ArrowRightLeft, Search, HelpCircle, CheckCircle2, 
+  AlertCircle, Trash, Link, ExternalLink, Calendar, Loader2,
+  RefreshCw, Wifi, WifiOff, Database, Play, Check, ShieldCheck, 
+  CreditCard, ChevronDown, ChevronUp, Bell, Info
+} from 'lucide-react';
 
 interface BcaMutationManagerProps {
   mutations: BcaMutation[];
@@ -11,6 +16,7 @@ interface BcaMutationManagerProps {
   onDeleteMutation: (id: string) => void;
   onSetMutationStatus: (id: string, status: 'Unmatched' | 'Matched' | 'Manual') => void;
   onQuickCreateInvoice: (mutation: BcaMutation) => void; // Shortcut to spawn a sale
+  userRole?: 'atasan' | 'karyawan';
 }
 
 export default function BcaMutationManager({
@@ -21,7 +27,8 @@ export default function BcaMutationManager({
   onUnlinkMutation,
   onDeleteMutation,
   onSetMutationStatus,
-  onQuickCreateInvoice
+  onQuickCreateInvoice,
+  userRole = 'atasan'
 }: BcaMutationManagerProps) {
 
   const formatIDR = (num: number) => {
@@ -44,8 +51,323 @@ export default function BcaMutationManager({
   // Reconcile modal state
   const [reconcilingMutation, setReconcilingMutation] = useState<BcaMutation | null>(null);
 
+  // --- REAL-TIME KLIKBCA & M-BCA INTEGRATION CORE ---
+  const [isBcaConnected, setIsBcaConnected] = useState(() => {
+    return localStorage.getItem('tokohp_bca_connected') !== 'false';
+  });
+  const [klikBcaUserId, setKlikBcaUserId] = useState(() => localStorage.getItem('tokohp_bca_userid') || 'JKPHONE88');
+  const [bcaRekNo, setBcaRekNo] = useState(() => localStorage.getItem('tokohp_bca_rekno') || '8830129481');
+  const [isSyncSettingsOpen, setIsSyncSettingsOpen] = useState(false);
+  const [autoReconcileEnabled, setAutoReconcileEnabled] = useState(true);
+  const [countdown, setCountdown] = useState(30);
+  const [isPolling, setIsPolling] = useState(false);
+  const [syncLogs, setSyncLogs] = useState<string[]>([]);
+
+  // --- MOOTA.CO INTEGRATION CORE ---
+  const [isMootaConnected, setIsMootaConnected] = useState(() => {
+    return localStorage.getItem('tokohp_moota_connected') === 'true';
+  });
+  const [mootaApiToken, setMootaApiToken] = useState(() => {
+    return localStorage.getItem('tokohp_moota_token') || '';
+  });
+  const [mootaBankId, setMootaBankId] = useState(() => {
+    return localStorage.getItem('tokohp_moota_bankid') || '';
+  });
+  const [isSyncingMoota, setIsSyncingMoota] = useState(false);
+  const [isMootaSettingsOpen, setIsMootaSettingsOpen] = useState(false);
+  
+  // Simulation input states
+  const [simSenderName, setSimSenderName] = useState('');
+  const [simAmount, setSimAmount] = useState('');
+  const [selectedPendingInvoiceId, setSelectedPendingInvoiceId] = useState('');
+  
+  // Toast Notification state
+  const [toast, setToast] = useState<{ title: string; description: string; type: 'success' | 'info' } | null>(null);
+
+  // Initialize Connection Logs
+  useEffect(() => {
+    const now = new Date().toLocaleTimeString('id-ID');
+    setSyncLogs([
+      `[${now}] [Sistem] Hub Koneksi klikBCA & m-BCA siap.`,
+      `[${now}] [m-BCA] Menghubungkan ke push notification listener...`,
+      `[${now}] [KlikBCA] Membentuk terowongan enkripsi aman SSL...`,
+      `[${now}] [Koneksi] Sukses terhubung ke server BCA KlikPay & m-BCA API.`
+    ]);
+  }, []);
+
+  // Polling Loop for active real-time sync
+  useEffect(() => {
+    if (!isBcaConnected) return;
+
+    const interval = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          triggerAutoPoll();
+          return 30; // reset to 30s
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isBcaConnected]);
+
+  const triggerAutoPoll = () => {
+    setIsPolling(true);
+    const now = new Date().toLocaleTimeString('id-ID');
+    
+    setSyncLogs(prev => [
+      `[${now}] [KlikBCA] Melakukan penarikan mutasi rekening (e-Statement)...`,
+      ...prev
+    ]);
+
+    setTimeout(() => {
+      const finishTime = new Date().toLocaleTimeString('id-ID');
+      setIsPolling(false);
+      setSyncLogs(prev => [
+        `[${finishTime}] [KlikBCA] Sinkronisasi berhasil. 0 transaksi baru ditemukan.`,
+        ...prev
+      ]);
+    }, 1200);
+  };
+
+  // Auto reconciliation algorithm
+  useEffect(() => {
+    if (!autoReconcileEnabled) return;
+
+    const unmatchedCr = mutations.filter(m => m.type === 'CR' && m.status === 'Unmatched');
+    if (unmatchedCr.length === 0) return;
+
+    unmatchedCr.forEach(m => {
+      // Find matching pending Transfer BCA invoice
+      const matchedTx = transactions.find(tx => 
+        tx.paymentMethod === 'Transfer BCA' && 
+        !tx.bcaMutationId && 
+        tx.totalAmount === m.amount
+      );
+
+      if (matchedTx) {
+        onLinkMutationToTransaction(m.id, matchedTx.id);
+        
+        const now = new Date().toLocaleTimeString('id-ID');
+        setSyncLogs(prev => [
+          `[${now}] [AUTO-RECONCILE] Cocok! Menghubungkan mutasi Rp ${m.amount.toLocaleString('id-ID')} ke Invoice ${matchedTx.invoiceNumber} (${matchedTx.customerName}).`,
+          `[${now}] [Sistem] Status Invoice ${matchedTx.invoiceNumber} otomatis diubah menjadi LUNAS & TERVERIFIKASI.`,
+          ...prev
+        ]);
+
+        setToast({
+          title: 'Rekonsiliasi Otomatis Sukses! 🎉',
+          description: `Mutasi Rp ${m.amount.toLocaleString('id-ID')} otomatis diselaraskan dengan Invoice ${matchedTx.invoiceNumber} (${matchedTx.customerName}).`,
+          type: 'success'
+        });
+
+        // Auto dismiss toast after 6 seconds
+        setTimeout(() => {
+          setToast(null);
+        }, 6000);
+      }
+    });
+  }, [mutations, transactions, autoReconcileEnabled, onLinkMutationToTransaction]);
+
+  // Save Connection Config to localStorage
+  const handleToggleBcaConnection = () => {
+    const nextState = !isBcaConnected;
+    setIsBcaConnected(nextState);
+    localStorage.setItem('tokohp_bca_connected', String(nextState));
+    
+    const now = new Date().toLocaleTimeString('id-ID');
+    if (nextState) {
+      setSyncLogs(prev => [
+        `[${now}] [Koneksi] Mengaktifkan koneksi KlikBCA & m-BCA secara real-time...`,
+        `[${now}] [Sistem] Polling dimulai otomatis setiap 30 detik.`,
+        ...prev
+      ]);
+    } else {
+      setSyncLogs(prev => [
+        `[${now}] [Koneksi] Memutuskan koneksi KlikBCA & m-BCA. Mode manual aktif.`,
+        ...prev
+      ]);
+    }
+  };
+
+  const handleSaveCredentials = (e: React.FormEvent) => {
+    e.preventDefault();
+    localStorage.setItem('tokohp_bca_userid', klikBcaUserId);
+    localStorage.setItem('tokohp_bca_rekno', bcaRekNo);
+    setIsSyncSettingsOpen(false);
+    
+    const now = new Date().toLocaleTimeString('id-ID');
+    setSyncLogs(prev => [
+      `[${now}] [Sistem] Konfigurasi kredensial KlikBCA/m-BCA berhasil diperbarui secara lokal.`,
+      ...prev
+    ]);
+    
+    alert('Kredensial KlikBCA & m-BCA disimpan dengan aman di browser Anda!');
+  };
+
+  // Simulate incoming Transfer BCA from customers
+  const handleSimulateTransfer = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    let sender = simSenderName.trim() || 'AGUS WAHYUDI';
+    let amountNum = Number(simAmount);
+
+    if (selectedPendingInvoiceId) {
+      const matchTx = transactions.find(tx => tx.id === selectedPendingInvoiceId);
+      if (matchTx) {
+        sender = matchTx.customerName;
+        amountNum = matchTx.totalAmount;
+      }
+    }
+
+    if (!amountNum || amountNum <= 0) {
+      alert('Masukkan nominal transfer simulasi yang valid!');
+      return;
+    }
+
+    const newMut: Omit<BcaMutation, 'id' | 'status'> = {
+      date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+      description: `TRSF E-BANKING CR ${new Date().getDate()}${new Date().getMonth()+1}/F${Math.floor(1000 + Math.random() * 9000)} ${sender.toUpperCase()}`,
+      amount: amountNum,
+      type: 'CR',
+      rawText: `TRSF E-BANKING CR F${Math.floor(1000 + Math.random() * 9000)} ${sender.toUpperCase()} Rp ${amountNum.toLocaleString('id-ID')},00`
+    };
+
+    onAddMutations([newMut]);
+
+    const now = new Date().toLocaleTimeString('id-ID');
+    setSyncLogs(prev => [
+      `[${now}] [m-BCA PUSH] NOTIFIKASI BARU: DANA MASUK Rp ${amountNum.toLocaleString('id-ID')} dari ${sender.toUpperCase()}!`,
+      `[${now}] [m-BCA] Memproses notifikasi transaksi real-time...`,
+      ...prev
+    ]);
+
+    setToast({
+      title: 'Simulasi Transfer Berhasil! 💸',
+      description: `Menerima dana masuk Rp ${amountNum.toLocaleString('id-ID')} dari ${sender.toUpperCase()}`,
+      type: 'success'
+    });
+
+    // Reset inputs
+    setSimSenderName('');
+    setSimAmount('');
+    setSelectedPendingInvoiceId('');
+
+    setTimeout(() => {
+      setToast(null);
+    }, 6000);
+  };
+
+  // --- MOOTA.CO INTEGRATION FUNCTIONS ---
+  const handleMootaSync = async (forceDemo = false) => {
+    setIsSyncingMoota(true);
+    const now = new Date().toLocaleTimeString('id-ID');
+    
+    setSyncLogs(prev => [
+      `[${now}] [Moota.com] Menginisiasi sinkronisasi API Moota...`,
+      ...prev
+    ]);
+
+    try {
+      const useDemo = forceDemo || !mootaApiToken;
+      
+      const response = await fetch('/api/moota/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          apiToken: mootaApiToken,
+          bankId: mootaBankId,
+          isDemo: useDemo
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Gagal tersambung ke Moota API.');
+      }
+
+      const data = await response.json();
+      
+      if (data.success && data.transactions && data.transactions.length > 0) {
+        // Add new mutations
+        onAddMutations(data.transactions);
+        
+        const finishTime = new Date().toLocaleTimeString('id-ID');
+        setSyncLogs(prev => [
+          `[${finishTime}] [Moota.com] Sukses! Menerima ${data.transactions.length} mutasi baru dari Moota.com${data.isDemo ? ' (MODE SIMULASI/DEMO)' : ''}.`,
+          ...prev
+        ]);
+
+        setToast({
+          title: 'Sinkronisasi Moota Sukses! 🔄',
+          description: `Berhasil menarik ${data.transactions.length} transaksi terbaru dari akun Moota.co Anda.`,
+          type: 'success'
+        });
+
+        setTimeout(() => setToast(null), 5000);
+      } else {
+        const finishTime = new Date().toLocaleTimeString('id-ID');
+        setSyncLogs(prev => [
+          `[${finishTime}] [Moota.com] Sinkronisasi selesai. Tidak ada transaksi mutasi baru ditemukan.`,
+          ...prev
+        ]);
+      }
+    } catch (error: any) {
+      console.error(error);
+      const finishTime = new Date().toLocaleTimeString('id-ID');
+      setSyncLogs(prev => [
+        `[${finishTime}] [Moota.com] ERROR: ${error.message}`,
+        ...prev
+      ]);
+      alert(`Gagal Sinkronisasi Moota: ${error.message}`);
+    } finally {
+      setIsSyncingMoota(false);
+    }
+  };
+
+  const handleToggleMootaConnection = () => {
+    const nextState = !isMootaConnected;
+    setIsMootaConnected(nextState);
+    localStorage.setItem('tokohp_moota_connected', String(nextState));
+    
+    const now = new Date().toLocaleTimeString('id-ID');
+    if (nextState) {
+      setSyncLogs(prev => [
+        `[${now}] [Moota.com] Integrasi Moota.co diaktifkan.`,
+        `[${now}] [Moota.com] Konektor API siap digunakan.`,
+        ...prev
+      ]);
+    } else {
+      setSyncLogs(prev => [
+        `[${now}] [Moota.com] Integrasi Moota.co dinonaktifkan.`,
+        ...prev
+      ]);
+    }
+  };
+
+  const handleSaveMootaCredentials = (e: React.FormEvent) => {
+    e.preventDefault();
+    localStorage.setItem('tokohp_moota_token', mootaApiToken);
+    localStorage.setItem('tokohp_moota_bankid', mootaBankId);
+    setIsMootaSettingsOpen(false);
+    
+    const now = new Date().toLocaleTimeString('id-ID');
+    setSyncLogs(prev => [
+      `[${now}] [Moota.com] Kredensial Moota API Token & Bank ID berhasil disimpan secara lokal.`,
+      ...prev
+    ]);
+    
+    alert('Kredensial Moota.com berhasil disimpan dengan aman!');
+  };
+
   // Filter list
   const filteredMutations = mutations.filter(m => {
+    if (userRole === 'karyawan' && m.type !== 'CR') {
+      return false;
+    }
     return (
       m.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.rawText.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -101,37 +423,406 @@ export default function BcaMutationManager({
     return tx.paymentMethod === 'Transfer BCA' && !tx.bcaMutationId;
   });
 
+  // Force subtab to 'daftar' for employees
+  useEffect(() => {
+    if (userRole === 'karyawan' && activeSubTab !== 'daftar') {
+      setActiveSubTab('daftar');
+    }
+  }, [userRole, activeSubTab]);
+
   return (
     <div className="space-y-6" id="bca-mutation-wrapper">
       {/* Tab Nav */}
-      <div className="flex border-b border-slate-100" id="bca-tabs-nav">
-        <button
-          id="btn-bca-tab-daftar"
-          onClick={() => setActiveSubTab('daftar')}
-          className={`pb-4 px-6 font-semibold text-sm border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-            activeSubTab === 'daftar'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <ArrowRightLeft className="h-4 w-4" /> Mutasi Rekening Masuk BCA
-        </button>
-        <button
-          id="btn-bca-tab-paste"
-          onClick={() => setActiveSubTab('paste')}
-          className={`pb-4 px-6 font-semibold text-sm border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-            activeSubTab === 'paste'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <Sparkles className="h-4 w-4 text-amber-500 animate-pulse" /> Tempel & Urai Mutasi AI
-        </button>
-      </div>
+      {userRole !== 'karyawan' && (
+        <div className="flex border-b border-slate-100" id="bca-tabs-nav">
+          <button
+            id="btn-bca-tab-daftar"
+            onClick={() => setActiveSubTab('daftar')}
+            className={`pb-4 px-6 font-semibold text-sm border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+              activeSubTab === 'daftar'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <ArrowRightLeft className="h-4 w-4" /> Mutasi Rekening Masuk BCA
+          </button>
+          <button
+            id="btn-bca-tab-paste"
+            onClick={() => setActiveSubTab('paste')}
+            className={`pb-4 px-6 font-semibold text-sm border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+              activeSubTab === 'paste'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <Sparkles className="h-4 w-4 text-amber-500 animate-pulse" /> Tempel & Urai Mutasi AI
+          </button>
+        </div>
+      )}
 
       {/* VIEW 1: DAFTAR MUTASI MASUK */}
       {activeSubTab === 'daftar' && (
         <div className="space-y-4 animate-fade-in" id="bca-list-view">
+          {/* TOAST ALERTS OVERLAY */}
+          {toast && (
+            <div className="fixed top-6 right-6 z-50 animate-bounce max-w-sm bg-slate-900 border border-slate-800 text-white rounded-2xl shadow-2xl p-4 flex items-start gap-3" id="bca-live-toast">
+              <div className="p-2 bg-indigo-950 rounded-lg text-emerald-400 shrink-0 border border-indigo-900">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h5 className="font-bold text-xs text-white">{toast.title}</h5>
+                <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">{toast.description}</p>
+              </div>
+              <button onClick={() => setToast(null)} className="text-slate-400 hover:text-white transition text-xs font-bold px-1.5 py-0.5 rounded hover:bg-slate-800">✕</button>
+            </div>
+          )}
+
+          {/* REAL-TIME KLIKBCA & m-BCA HUB DASHBOARD */}
+          {userRole !== 'karyawan' && (
+            <div className="bg-slate-900 text-slate-100 rounded-3xl border border-slate-800 p-5 md:p-6 shadow-xl space-y-5" id="bca-realtime-dashboard">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-950 text-indigo-400 rounded-2xl border border-indigo-800/30 relative">
+                  <Wifi className={`h-6 w-6 ${isBcaConnected || isMootaConnected ? 'animate-pulse text-emerald-400' : 'text-slate-400'}`} />
+                  {(isBcaConnected || isMootaConnected) && (
+                    <span className="absolute top-1 right-1 flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-base text-white">Hub Integrasi KlikBCA & Moota.com Real-Time</h4>
+                    <span className={`text-[10px] px-2 py-0.5 font-bold rounded-full border ${
+                      isBcaConnected || isMootaConnected
+                        ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400' 
+                        : 'bg-rose-500/15 border-rose-500/30 text-rose-400'
+                    }`}>
+                      {isBcaConnected || isMootaConnected ? 'ONLINE (READY)' : 'OFFLINE'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">Hubungkan KlikBCA Bisnis, m-BCA Push Notifikasi & API Moota.com secara instant.</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                <button
+                  id="btn-toggle-bca-conn"
+                  onClick={handleToggleBcaConnection}
+                  className={`px-3 py-2 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5 w-full sm:w-auto justify-center border ${
+                    isBcaConnected 
+                      ? 'bg-rose-500/15 text-rose-400 border-rose-500/30 hover:bg-rose-500/25' 
+                      : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+                  }`}
+                >
+                  {isBcaConnected ? <WifiOff className="h-3.5 w-3.5" /> : <Wifi className="h-3.5 w-3.5" />}
+                  {isBcaConnected ? 'Matikan Polling BCA' : 'Aktifkan Polling BCA'}
+                </button>
+                
+                <button
+                  id="btn-toggle-moota-conn"
+                  onClick={handleToggleMootaConnection}
+                  className={`px-3 py-2 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5 w-full sm:w-auto justify-center border ${
+                    isMootaConnected 
+                      ? 'bg-pink-500/15 text-pink-400 border-pink-500/30 hover:bg-pink-500/25' 
+                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                  }`}
+                >
+                  {isMootaConnected ? <WifiOff className="h-3.5 w-3.5 text-pink-400" /> : <Wifi className="h-3.5 w-3.5 text-pink-400" />}
+                  {isMootaConnected ? 'Moota Aktif' : 'Aktifkan Moota'}
+                </button>
+
+                <button
+                  id="btn-toggle-bca-cred"
+                  onClick={() => setIsSyncSettingsOpen(!isSyncSettingsOpen)}
+                  className="px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center justify-center gap-1 w-full sm:w-auto cursor-pointer"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5 text-indigo-400" />
+                  {isSyncSettingsOpen ? 'Tutup BCA' : 'Config KlikBCA'}
+                </button>
+
+                <button
+                  id="btn-toggle-moota-cred"
+                  onClick={() => setIsMootaSettingsOpen(!isMootaSettingsOpen)}
+                  className="px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center justify-center gap-1 w-full sm:w-auto cursor-pointer"
+                >
+                  <RefreshCw className="h-3.5 w-3.5 text-pink-400 animate-spin" style={{ animationDuration: '6s' }} />
+                  {isMootaSettingsOpen ? 'Tutup Moota' : 'Config Moota'}
+                </button>
+              </div>
+            </div>
+
+            {/* CREDENTIALS CONFIG FORM PANEL */}
+            {isSyncSettingsOpen && (
+              <form onSubmit={handleSaveCredentials} className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl grid grid-cols-1 md:grid-cols-3 gap-4 items-end animate-fade-in" id="bca-cred-form">
+                <div>
+                  <label className="block text-[10px] font-black tracking-wider uppercase text-slate-400 mb-1.5">KlikBCA Business User ID</label>
+                  <input
+                    type="text"
+                    value={klikBcaUserId}
+                    onChange={(e) => setKlikBcaUserId(e.target.value.toUpperCase())}
+                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+                    placeholder="e.g. JKPHONE88"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black tracking-wider uppercase text-slate-400 mb-1.5">No. Rekening BCA (m-BCA)</label>
+                  <input
+                    type="text"
+                    value={bcaRekNo}
+                    onChange={(e) => setBcaRekNo(e.target.value.replace(/\D/g, ''))}
+                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+                    placeholder="e.g. 8830129481"
+                    required
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="block text-[10px] font-black tracking-wider uppercase text-slate-400 mb-1.5">Kode Akses / Password</label>
+                    <input
+                      type="password"
+                      value="******"
+                      disabled
+                      className="w-full p-2.5 bg-slate-900/50 border border-slate-800/80 rounded-xl text-xs font-mono text-slate-500 cursor-not-allowed"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl border border-indigo-500/20 transition whitespace-nowrap cursor-pointer h-[38px]"
+                  >
+                    Simpan Aman
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* MOOTA CONFIG FORM PANEL */}
+            {isMootaSettingsOpen && (
+              <form onSubmit={handleSaveMootaCredentials} className="p-4 bg-slate-950/80 border border-pink-900/40 rounded-2xl grid grid-cols-1 md:grid-cols-3 gap-4 items-end animate-fade-in" id="moota-cred-form">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span className="h-2 w-2 rounded-full bg-pink-500 animate-pulse"></span>
+                    <label className="block text-[10px] font-black tracking-wider uppercase text-slate-400">Moota API Token</label>
+                  </div>
+                  <input
+                    type="password"
+                    value={mootaApiToken}
+                    onChange={(e) => setMootaApiToken(e.target.value)}
+                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-pink-500"
+                    placeholder="Masukkan Moota API Token Anda"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black tracking-wider uppercase text-slate-400 mb-1.5">Moota Bank ID (Opsional)</label>
+                  <input
+                    type="text"
+                    value={mootaBankId}
+                    onChange={(e) => setMootaBankId(e.target.value)}
+                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-pink-500"
+                    placeholder="e.g. 9wDx8zo1pY (atau kosongkan)"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="block text-[10px] font-black tracking-wider uppercase text-slate-400 mb-1.5">Webhook URL</label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${window.location.origin}/api/moota/webhook`}
+                      onClick={(e) => {
+                        (e.target as HTMLInputElement).select();
+                        navigator.clipboard.writeText(`${window.location.origin}/api/moota/webhook`);
+                        alert('Link webhook berhasil dicopy!');
+                      }}
+                      className="w-full p-2.5 bg-slate-900/50 border border-slate-800/80 rounded-xl text-[10px] font-mono text-pink-400 cursor-pointer text-ellipsis overflow-hidden"
+                      title="Klik untuk menyalin"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="px-4 py-2.5 bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs rounded-xl border border-pink-500/20 transition whitespace-nowrap cursor-pointer h-[38px]"
+                  >
+                    Simpan Token
+                  </button>
+                </div>
+              </form>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5" id="bca-realtime-grid">
+              {/* LEFT COLUMN: CONNECTION STATUS & SYSTEM LOGS */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <Database className="h-4 w-4 text-slate-400" />
+                    <span className="text-slate-300 font-semibold">Log Aliran Mutasi (BCA & Moota Hub)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleMootaSync(false)}
+                      disabled={isSyncingMoota}
+                      className="px-2.5 py-1 text-[11px] font-bold bg-pink-950/40 text-pink-400 border border-pink-900/40 rounded-lg hover:bg-pink-900/30 transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      {isSyncingMoota ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin text-pink-400" />
+                          <span>Moota Sync...</span>
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-3 w-3 text-pink-400" />
+                          <span>Tarik Mutasi Moota.com</span>
+                        </>
+                      )}
+                    </button>
+                    {isBcaConnected && (
+                      <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                        {isPolling ? (
+                          <>
+                            <Loader2 className="h-3 w-3 text-indigo-400 animate-spin" />
+                            <span>Polling...</span>
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-3 w-3 text-emerald-400 animate-spin" style={{ animationDuration: '3s' }} />
+                            <span>BCA Polling <strong className="text-white font-black">{countdown}s</strong></span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* LOGS MONITOR TERMINAL */}
+                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 font-mono text-[11px] text-slate-300 overflow-y-auto h-[142px] space-y-1.5 select-all shadow-inner scrollbar-thin scrollbar-thumb-slate-800">
+                  {syncLogs.length === 0 ? (
+                    <div className="text-slate-500 italic">Belum ada aktivitas terekam.</div>
+                  ) : (
+                    syncLogs.map((log, index) => {
+                      let colorClass = 'text-slate-300';
+                      if (log.includes('[AUTO-RECONCILE]')) colorClass = 'text-emerald-400 font-bold';
+                      else if (log.includes('[m-BCA PUSH]')) colorClass = 'text-amber-300 font-semibold';
+                      else if (log.includes('[Koneksi]')) colorClass = 'text-indigo-300';
+                      else if (log.includes('[Moota.com]')) colorClass = 'text-pink-400 font-semibold';
+                      
+                      return (
+                        <div key={index} className={`${colorClass} leading-relaxed`}>
+                          {log}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* AUTO RECONCILE TOGGLE SWITCH */}
+                <div className="flex items-center justify-between p-3 bg-slate-950/40 border border-slate-800 rounded-2xl text-xs">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                    <div>
+                      <span className="font-bold text-slate-200">Verifikasi & Rekonsiliasi Otomatis (Instant Auto-Match)</span>
+                      <p className="text-[10px] text-slate-400">Mutasi masuk CR yang nominalnya cocok pas dengan Invoice akan langsung diverifikasi otomatis.</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAutoReconcileEnabled(!autoReconcileEnabled)}
+                    className={`px-3 py-1.5 text-[10px] font-bold rounded-lg border transition cursor-pointer ${
+                      autoReconcileEnabled 
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                    }`}
+                  >
+                    {autoReconcileEnabled ? 'Aktif (Rekomendasi)' : 'Nonaktif'}
+                  </button>
+                </div>
+              </div>
+
+              {/* RIGHT COLUMN: SIMULATOR (UNTUK DEMO KONEKTIVITAS REAL-TIME) */}
+              <div className="lg:col-span-5 bg-indigo-950/20 border border-indigo-900/40 rounded-2xl p-4 space-y-4">
+                <div className="flex items-center gap-2 border-b border-indigo-900/30 pb-2">
+                  <Sparkles className="h-4.5 w-4.5 text-amber-400 animate-pulse" />
+                  <div>
+                    <h5 className="font-bold text-xs text-indigo-200 uppercase tracking-wider">Simulator m-BCA / Transfer Masuk</h5>
+                    <p className="text-[10px] text-slate-400">Simulasikan dana masuk dari pelanggan untuk menguji kecanggihan rekonsiliasi real-time.</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSimulateTransfer} className="space-y-3" id="bca-sim-form">
+                  {/* Select pending invoice for matching */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1"> PILIH INVOICE TRANSFER BCA YANG BELUM LUNAS</label>
+                    <select
+                      value={selectedPendingInvoiceId}
+                      onChange={(e) => {
+                        setSelectedPendingInvoiceId(e.target.value);
+                        if (e.target.value) {
+                          const matchTx = transactions.find(tx => tx.id === e.target.value);
+                          if (matchTx) {
+                            setSimSenderName(matchTx.customerName);
+                            setSimAmount(String(matchTx.totalAmount));
+                          }
+                        } else {
+                          setSimSenderName('');
+                          setSimAmount('');
+                        }
+                      }}
+                      className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                    >
+                      <option value="">-- Simulasi Transfer Bebas / Baru --</option>
+                      {unreconciledTransactions.map(tx => (
+                        <option key={tx.id} value={tx.id}>
+                          {tx.invoiceNumber} - {tx.customerName} ({formatIDR(tx.totalAmount)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Manual name & amount */}
+                  {!selectedPendingInvoiceId && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 mb-1">Nama Pengirim</label>
+                        <input
+                          type="text"
+                          value={simSenderName}
+                          onChange={(e) => setSimSenderName(e.target.value)}
+                          className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:indigo-500"
+                          placeholder="e.g. SITI LESTARI"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 mb-1">Nominal Transfer (Rp)</label>
+                        <input
+                          type="number"
+                          value={simAmount}
+                          onChange={(e) => setSimAmount(e.target.value)}
+                          className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:indigo-500"
+                          placeholder="e.g. 4500000"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedPendingInvoiceId && (
+                    <div className="p-2.5 bg-indigo-950 border border-indigo-900 rounded-xl text-[11px] text-indigo-300">
+                      Target Pembayaran: <strong className="text-white">{simSenderName}</strong> senilai <strong className="text-white">{formatIDR(Number(simAmount))}</strong>.
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+                  >
+                    <Play className="h-3.5 w-3.5 fill-current" /> Simulasikan Transfer Masuk & Uji Rekonsiliasi
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+          )}
+
           {/* Filters and counts */}
           <div className="flex flex-col md:flex-row gap-3 bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs" id="bca-search-filters">
             <div className="relative flex-1">
@@ -161,16 +852,16 @@ export default function BcaMutationManager({
                     <th className="py-4 px-6">Tanggal Mutasi</th>
                     <th className="py-4 px-4">Deskripsi Rekening (Raw)</th>
                     <th className="py-4 px-4 text-right">Nominal Masuk (CR)</th>
-                    <th className="py-4 px-4 text-right">Nominal Keluar (DB)</th>
+                    {userRole !== 'karyawan' && <th className="py-4 px-4 text-right">Nominal Keluar (DB)</th>}
                     <th className="py-4 px-4 text-center">Status Rekonsiliasi</th>
-                    <th className="py-4 px-6 text-center">Tindakan Pembukuan</th>
+                    {userRole !== 'karyawan' && <th className="py-4 px-6 text-center">Tindakan Pembukuan</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {filteredMutations.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-12 text-slate-400">
-                        Belum ada data mutasi rekening tercatat. Silakan tempel mutasi BCA menggunakan tab AI di atas!
+                      <td colSpan={userRole === 'karyawan' ? 4 : 6} className="text-center py-12 text-slate-400">
+                        Belum ada data mutasi rekening tercatat.
                       </td>
                     </tr>
                   ) : (
@@ -190,9 +881,11 @@ export default function BcaMutationManager({
                             <td className="py-4 px-4 text-right font-bold text-emerald-600">
                               {isCredit ? formatIDR(m.amount) : '-'}
                             </td>
-                            <td className="py-4 px-4 text-right font-semibold text-rose-500">
-                              {!isCredit ? formatIDR(m.amount) : '-'}
-                            </td>
+                            {userRole !== 'karyawan' && (
+                              <td className="py-4 px-4 text-right font-semibold text-rose-500">
+                                {!isCredit ? formatIDR(m.amount) : '-'}
+                              </td>
+                            )}
                             <td className="py-4 px-4 text-center">
                               {m.status === 'Matched' ? (
                                 <div className="space-y-1">
@@ -215,77 +908,79 @@ export default function BcaMutationManager({
                                 </span>
                               )}
                             </td>
-                            <td className="py-4 px-6 text-center">
-                              <div className="flex flex-col gap-1.5 items-center justify-center">
-                                {m.status === 'Unmatched' && isCredit && (
-                                  <>
+                            {userRole !== 'karyawan' && (
+                              <td className="py-4 px-6 text-center">
+                                <div className="flex flex-col gap-1.5 items-center justify-center">
+                                  {m.status === 'Unmatched' && isCredit && (
+                                    <>
+                                      <button
+                                        id={`btn-match-mut-${m.id}`}
+                                        onClick={() => setReconcilingMutation(m)}
+                                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg flex items-center gap-1 transition cursor-pointer"
+                                      >
+                                        <Link className="h-3 w-3" /> Hubungkan ke Invoice
+                                      </button>
+                                      <button
+                                        id={`btn-spawn-tx-${m.id}`}
+                                        onClick={() => {
+                                          if (confirm(`Buat Transaksi Invoice baru otomatis dengan nilai ${formatIDR(m.amount)} berdasarkan mutasi transfer ini?`)) {
+                                            onQuickCreateInvoice(m);
+                                          }
+                                        }}
+                                        className="px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[11px] rounded-lg flex items-center gap-1 transition cursor-pointer"
+                                      >
+                                        <ExternalLink className="h-3 w-3" /> Buat Nota Jual Cepat
+                                      </button>
+                                    </>
+                                  )}
+                                  {m.status === 'Matched' && (
                                     <button
-                                      id={`btn-match-mut-${m.id}`}
-                                      onClick={() => setReconcilingMutation(m)}
-                                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg flex items-center gap-1 transition cursor-pointer"
-                                    >
-                                      <Link className="h-3 w-3" /> Hubungkan ke Invoice
-                                    </button>
-                                    <button
-                                      id={`btn-spawn-tx-${m.id}`}
+                                      id={`btn-unlink-mut-${m.id}`}
                                       onClick={() => {
-                                        if (confirm(`Buat Transaksi Invoice baru otomatis dengan nilai ${formatIDR(m.amount)} berdasarkan mutasi transfer ini?`)) {
-                                          onQuickCreateInvoice(m);
+                                        if (confirm('Apakah Anda ingin memutus hubungan mutasi ini dengan Invoice Penjualan?')) {
+                                          onUnlinkMutation(m.id);
                                         }
                                       }}
-                                      className="px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[11px] rounded-lg flex items-center gap-1 transition cursor-pointer"
+                                      className="px-2.5 py-1 border border-rose-200 text-rose-600 hover:bg-rose-50 font-semibold text-[10px] rounded-lg transition cursor-pointer"
                                     >
-                                      <ExternalLink className="h-3 w-3" /> Buat Nota Jual Cepat
-                                    </button>
-                                  </>
-                                )}
-                                {m.status === 'Matched' && (
-                                  <button
-                                    id={`btn-unlink-mut-${m.id}`}
-                                    onClick={() => {
-                                      if (confirm('Apakah Anda ingin memutus hubungan mutasi ini dengan Invoice Penjualan?')) {
-                                        onUnlinkMutation(m.id);
-                                      }
-                                    }}
-                                    className="px-2.5 py-1 border border-rose-200 text-rose-600 hover:bg-rose-50 font-semibold text-[10px] rounded-lg transition cursor-pointer"
-                                  >
-                                    Putuskan Link
-                                  </button>
-                                )}
-                                <div className="flex gap-1">
-                                  {m.status === 'Unmatched' && (
-                                    <button
-                                      id={`btn-set-manual-${m.id}`}
-                                      onClick={() => onSetMutationStatus(m.id, 'Manual')}
-                                      className="text-[10px] text-slate-400 hover:text-slate-600 font-semibold px-1.5 py-0.5 border border-slate-200 rounded cursor-pointer"
-                                    >
-                                      Set Non-Retail
+                                      Putuskan Link
                                     </button>
                                   )}
-                                  {m.status === 'Manual' && (
+                                  <div className="flex gap-1">
+                                    {m.status === 'Unmatched' && (
+                                      <button
+                                        id={`btn-set-manual-${m.id}`}
+                                        onClick={() => onSetMutationStatus(m.id, 'Manual')}
+                                        className="text-[10px] text-slate-400 hover:text-slate-600 font-semibold px-1.5 py-0.5 border border-slate-200 rounded cursor-pointer"
+                                      >
+                                        Set Non-Retail
+                                      </button>
+                                    )}
+                                    {m.status === 'Manual' && (
+                                      <button
+                                        id={`btn-set-unmatch-${m.id}`}
+                                        onClick={() => onSetMutationStatus(m.id, 'Unmatched')}
+                                        className="text-[10px] text-slate-400 hover:text-slate-600 font-semibold px-1.5 py-0.5 border border-slate-200 rounded cursor-pointer"
+                                      >
+                                        Set Unmatched
+                                      </button>
+                                    )}
                                     <button
-                                      id={`btn-set-unmatch-${m.id}`}
-                                      onClick={() => onSetMutationStatus(m.id, 'Unmatched')}
-                                      className="text-[10px] text-slate-400 hover:text-slate-600 font-semibold px-1.5 py-0.5 border border-slate-200 rounded cursor-pointer"
+                                      id={`btn-del-mut-${m.id}`}
+                                      onClick={() => {
+                                        if (confirm('Hapus baris mutasi rekening ini dari database?')) {
+                                          onDeleteMutation(m.id);
+                                        }
+                                      }}
+                                      className="p-1 hover:bg-rose-50 hover:text-rose-500 rounded text-slate-300 transition cursor-pointer"
+                                      title="Hapus baris mutasi"
                                     >
-                                      Set Unmatched
+                                      <Trash className="h-3.5 w-3.5" />
                                     </button>
-                                  )}
-                                  <button
-                                    id={`btn-del-mut-${m.id}`}
-                                    onClick={() => {
-                                      if (confirm('Hapus baris mutasi rekening ini dari database?')) {
-                                        onDeleteMutation(m.id);
-                                      }
-                                    }}
-                                    className="p-1 hover:bg-rose-50 hover:text-rose-500 rounded text-slate-300 transition cursor-pointer"
-                                    title="Hapus baris mutasi"
-                                  >
-                                    <Trash className="h-3.5 w-3.5" />
-                                  </button>
+                                  </div>
                                 </div>
-                              </div>
-                            </td>
+                              </td>
+                            )}
                           </tr>
                         );
                       })

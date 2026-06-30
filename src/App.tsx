@@ -38,7 +38,6 @@ import ExpensesList from './components/ExpensesList';
 import BcaMutationManager from './components/BcaMutationManager';
 import AccessoriesAndSpareparts from './components/AccessoriesAndSpareparts';
 import ImeiUnlockTracker from './components/ImeiUnlockTracker';
-import ServiceNotesManager from './components/ServiceNotesManager';
 import MasterProductCatalog from './components/MasterProductCatalog';
 import FinanceReport from './components/FinanceReport';
 
@@ -69,6 +68,27 @@ import {
 export default function App() {
   // Navigation State
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+
+  // User Role State: 'atasan' or 'karyawan'
+  const [userRole, setUserRole] = useState<'atasan' | 'karyawan'>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const roleParam = params.get('role');
+    if (roleParam === 'karyawan') {
+      return 'karyawan';
+    }
+    const storedRole = localStorage.getItem('tokohp_user_role');
+    return (storedRole === 'karyawan' || storedRole === 'atasan') ? storedRole : 'atasan';
+  });
+
+  // Redirect employee to permitted tab
+  useEffect(() => {
+    if (userRole === 'karyawan') {
+      const allowedTabs = ['stock', 'acc-sp', 'bca', 'transactions'];
+      if (!allowedTabs.includes(activeTab)) {
+        setActiveTab('stock');
+      }
+    }
+  }, [userRole, activeTab]);
 
   // Core Data States
   const [products, setProducts] = useState<PhoneProduct[]>([]);
@@ -1043,34 +1063,108 @@ export default function App() {
             </div>
           </div>
 
-          {/* Action Tools: Backup & Cadangan */}
-          <div className="flex items-center gap-2">
-            <button
-              id="btn-seed-reset"
-              onClick={handleResetToSeeds}
-              className="p-2 hover:bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-xl transition cursor-pointer"
-              title="Reset ke Contoh Awal"
-            >
-              <RefreshCw className="h-4.5 w-4.5" />
-            </button>
-            <button
-              id="btn-backup-export"
-              onClick={handleExportBackup}
-              className="p-2 hover:bg-slate-50 text-slate-500 hover:text-indigo-600 rounded-xl transition cursor-pointer flex items-center gap-1 text-xs font-semibold"
-              title="Ekspor Backup File Cadangan JSON"
-            >
-              <Download className="h-4.5 w-4.5" /> <span className="hidden sm:inline">Backup</span>
-            </button>
-            <label className="p-2 hover:bg-slate-50 text-slate-500 hover:text-indigo-600 rounded-xl transition cursor-pointer flex items-center gap-1 text-xs font-semibold">
-              <Upload className="h-4.5 w-4.5" /> <span className="hidden sm:inline">Import</span>
-              <input
-                id="btn-backup-import"
-                type="file"
-                accept=".json"
-                onChange={handleImportBackup}
-                className="hidden"
-              />
-            </label>
+          {/* Role switcher & Employee link builder */}
+          <div className="flex items-center gap-4">
+            {userRole === 'atasan' ? (
+              <div className="flex items-center gap-2">
+                {/* Atasan Badge & Selector */}
+                <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200" id="role-switcher-header">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserRole('atasan');
+                      localStorage.setItem('tokohp_user_role', 'atasan');
+                    }}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                      userRole === 'atasan'
+                        ? 'bg-white text-indigo-700 shadow-3xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    👑 Atasan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserRole('karyawan');
+                      localStorage.setItem('tokohp_user_role', 'karyawan');
+                    }}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                      userRole === 'karyawan'
+                        ? 'bg-white text-indigo-700 shadow-3xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    👤 Karyawan
+                  </button>
+                </div>
+
+                {/* Salin Link Karyawan Button */}
+                <button
+                  onClick={() => {
+                    const employeeUrl = window.location.origin + window.location.pathname + "?role=karyawan";
+                    navigator.clipboard.writeText(employeeUrl);
+                    alert(`Link akses khusus karyawan berhasil disalin:\n\n${employeeUrl}\n\nKaryawan hanya akan dapat melihat sisa stok HP, sisa stok aksesoris, & mutasi BCA uang masuk tanpa harga modal atau laba rugi.`);
+                  }}
+                  className="px-3 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100 font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer"
+                  title="Salin Link Akses Khusus Karyawan"
+                >
+                  <Sparkles className="h-3.5 w-3.5" /> Salin Link Karyawan
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                {/* Employee Locked Badge */}
+                <span className="bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1.5">
+                  👤 Mode Karyawan (Akses Terbatas)
+                </span>
+                
+                {/* Switch back option (only if NOT locked by URL parameter) */}
+                {!window.location.search.includes('role=karyawan') && (
+                  <button
+                    onClick={() => {
+                      setUserRole('atasan');
+                      localStorage.setItem('tokohp_user_role', 'atasan');
+                    }}
+                    className="text-xs text-slate-400 hover:text-indigo-600 underline font-bold cursor-pointer"
+                  >
+                    Kembali ke Atasan
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Action Tools: Backup & Cadangan (Only for Owner) */}
+            {userRole !== 'karyawan' && (
+              <div className="flex items-center gap-1.5 border-l border-slate-200 pl-4">
+                <button
+                  id="btn-seed-reset"
+                  onClick={handleResetToSeeds}
+                  className="p-2 hover:bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-xl transition cursor-pointer"
+                  title="Reset ke Contoh Awal"
+                >
+                  <RefreshCw className="h-4.5 w-4.5" />
+                </button>
+                <button
+                  id="btn-backup-export"
+                  onClick={handleExportBackup}
+                  className="p-2 hover:bg-slate-50 text-slate-500 hover:text-indigo-600 rounded-xl transition cursor-pointer flex items-center gap-1 text-xs font-semibold"
+                  title="Ekspor Backup File Cadangan JSON"
+                >
+                  <Download className="h-4.5 w-4.5" /> <span className="hidden lg:inline">Backup</span>
+                </button>
+                <label className="p-2 hover:bg-slate-50 text-slate-500 hover:text-indigo-600 rounded-xl transition cursor-pointer flex items-center gap-1 text-xs font-semibold">
+                  <Upload className="h-4.5 w-4.5" /> <span className="hidden lg:inline">Import</span>
+                  <input
+                    id="btn-backup-import"
+                    type="file"
+                    accept=".json"
+                    onChange={handleImportBackup}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -1081,30 +1175,34 @@ export default function App() {
         {/* SIDEBAR NAVIGATION BAR */}
         <nav className="w-full md:w-64 flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-x-visible pb-3 md:pb-0 scrollbar-none" id="sidebar-nav">
           {/* 1. Ringkasan Toko */}
-          <button
-            id="nav-dashboard"
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'dashboard'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-500 hover:bg-white hover:text-slate-800'
-            }`}
-          >
-            <TrendingUp className="h-4.5 w-4.5" /> Ringkasan Toko
-          </button>
+          {userRole !== 'karyawan' && (
+            <button
+              id="nav-dashboard"
+              onClick={() => setActiveTab('dashboard')}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition whitespace-nowrap cursor-pointer ${
+                activeTab === 'dashboard'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-white hover:text-slate-800'
+              }`}
+            >
+              <TrendingUp className="h-4.5 w-4.5" /> Ringkasan Toko
+            </button>
+          )}
           
           {/* 2. Master Barang & Historis Barang */}
-          <button
-            id="nav-master-catalog"
-            onClick={() => setActiveTab('master-catalog')}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'master-catalog'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-500 hover:bg-white hover:text-slate-800'
-            }`}
-          >
-            <ClipboardList className="h-4.5 w-4.5" /> Master Barang & Historis Barang
-          </button>
+          {userRole !== 'karyawan' && (
+            <button
+              id="nav-master-catalog"
+              onClick={() => setActiveTab('master-catalog')}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition whitespace-nowrap cursor-pointer ${
+                activeTab === 'master-catalog'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-white hover:text-slate-800'
+              }`}
+            >
+              <ClipboardList className="h-4.5 w-4.5" /> Master Barang & Historis Barang
+            </button>
+          )}
 
           {/* 3. Stok HP & Barang Masuk */}
           <button
@@ -1116,7 +1214,7 @@ export default function App() {
                 : 'text-slate-500 hover:bg-white hover:text-slate-800'
             }`}
           >
-            <Smartphone className="h-4.5 w-4.5" /> Stok HP & Barang Masuk
+            <Smartphone className="h-4.5 w-4.5" /> {userRole === 'karyawan' ? 'Sisa Stok HP' : 'Stok HP & Barang Masuk'}
           </button>
 
           {/* 4. Penjualan & Barang Keluar */}
@@ -1129,7 +1227,7 @@ export default function App() {
                 : 'text-slate-500 hover:bg-white hover:text-slate-800'
             }`}
           >
-            <ShoppingBag className="h-4.5 w-4.5" /> Penjualan & Barang Keluar
+            <ShoppingBag className="h-4.5 w-4.5" /> {userRole === 'karyawan' ? 'Penjualan HP (Kasir)' : 'Penjualan & Barang Keluar'}
           </button>
 
           {/* 5. Stok Aksesoris */}
@@ -1142,47 +1240,38 @@ export default function App() {
                 : 'text-slate-500 hover:bg-white hover:text-slate-800'
             }`}
           >
-            <Layers className="h-4.5 w-4.5" /> Stok Aksesoris
-          </button>
-
-          {/* 6. Stok Sparerpart & Nota Service */}
-          <button
-            id="nav-services"
-            onClick={() => setActiveTab('services')}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'services'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-500 hover:bg-white hover:text-slate-800'
-            }`}
-          >
-            <Wrench className="h-4.5 w-4.5" /> Stok Sparepart & Nota Service
+            <Layers className="h-4.5 w-4.5" /> {userRole === 'karyawan' ? 'Sisa Stok Aksesoris' : 'Stok Aksesoris'}
           </button>
 
           {/* 7. Jasa Unlock IMEI */}
-          <button
-            id="nav-unlock"
-            onClick={() => setActiveTab('unlock')}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'unlock'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-500 hover:bg-white hover:text-slate-800'
-            }`}
-          >
-            <KeyRound className="h-4.5 w-4.5" /> Jasa Unlock IMEI
-          </button>
+          {userRole !== 'karyawan' && (
+            <button
+              id="nav-unlock"
+              onClick={() => setActiveTab('unlock')}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition whitespace-nowrap cursor-pointer ${
+                activeTab === 'unlock'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-white hover:text-slate-800'
+              }`}
+            >
+              <KeyRound className="h-4.5 w-4.5" /> Jasa Unlock IMEI
+            </button>
+          )}
 
           {/* 8. Pengeluaran Operasional */}
-          <button
-            id="nav-expenses"
-            onClick={() => setActiveTab('expenses')}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'expenses'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-500 hover:bg-white hover:text-slate-800'
-            }`}
-          >
-            <DollarSign className="h-4.5 w-4.5" /> Pengeluaran Operasional
-          </button>
+          {userRole !== 'karyawan' && (
+            <button
+              id="nav-expenses"
+              onClick={() => setActiveTab('expenses')}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition whitespace-nowrap cursor-pointer ${
+                activeTab === 'expenses'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-white hover:text-slate-800'
+              }`}
+            >
+              <DollarSign className="h-4.5 w-4.5" /> Pengeluaran Operasional
+            </button>
+          )}
 
           {/* 9. Laporan Mutasi BCA */}
           <button
@@ -1195,9 +1284,9 @@ export default function App() {
             }`}
           >
             <div className="flex items-center gap-3">
-              <ArrowRightLeft className="h-4.5 w-4.5" /> Laporan Mutasi BCA
+              <ArrowRightLeft className="h-4.5 w-4.5" /> {userRole === 'karyawan' ? 'Mutasi BCA Uang Masuk' : 'Laporan Mutasi BCA'}
             </div>
-            {bcaMutations.filter(m => m.type === 'CR' && m.status === 'Unmatched').length > 0 && (
+            {userRole !== 'karyawan' && bcaMutations.filter(m => m.type === 'CR' && m.status === 'Unmatched').length > 0 && (
               <span className="bg-amber-400 text-amber-950 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
                 {bcaMutations.filter(m => m.type === 'CR' && m.status === 'Unmatched').length}
               </span>
@@ -1205,17 +1294,19 @@ export default function App() {
           </button>
 
           {/* 10. Laporan Keuangan */}
-          <button
-            id="nav-finance-report"
-            onClick={() => setActiveTab('finance-report')}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'finance-report'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-500 hover:bg-white hover:text-slate-800'
-            }`}
-          >
-            <Coins className="h-4.5 w-4.5" /> Laporan Keuangan
-          </button>
+          {userRole !== 'karyawan' && (
+            <button
+              id="nav-finance-report"
+              onClick={() => setActiveTab('finance-report')}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition whitespace-nowrap cursor-pointer ${
+                activeTab === 'finance-report'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-white hover:text-slate-800'
+              }`}
+            >
+              <Coins className="h-4.5 w-4.5" /> Laporan Keuangan
+            </button>
+          )}
         </nav>
 
         {/* MAIN COMPONENT VIEWER AREA */}
@@ -1244,6 +1335,7 @@ export default function App() {
               onEditBarangMasuk={handleEditBarangMasuk}
               onDeleteBarangMasuk={handleDeleteBarangMasuk}
               masterProducts={masterProducts}
+              userRole={userRole}
             />
           )}
 
@@ -1266,6 +1358,10 @@ export default function App() {
               onAddTransaction={handleAddTransaction}
               onEditTransaction={handleEditTransaction}
               onDeleteTransaction={handleDeleteTransaction}
+              barangKeluarList={barangKeluarList}
+              onAddBarangKeluar={handleAddBarangKeluar}
+              onDeleteBarangKeluar={handleDeleteBarangKeluar}
+              userRole={userRole}
             />
           )}
 
@@ -1300,6 +1396,7 @@ export default function App() {
                 setQuickSaleProdId('');
                 setQuickSaleImei('');
               }}
+              userRole={userRole}
             />
           )}
 
@@ -1313,6 +1410,7 @@ export default function App() {
               onDeleteAccessory={handleDeleteAccessory}
               onAddAccSale={handleAddAccSale}
               onDeleteAccSale={handleDeleteAccSale}
+              userRole={userRole}
             />
           )}
 
@@ -1322,20 +1420,6 @@ export default function App() {
               onAddUnlockRequest={handleAddUnlockRequest}
               onUpdateUnlockStatus={handleUpdateUnlockStatus}
               onDeleteUnlockRequest={handleDeleteUnlockRequest}
-            />
-          )}
-
-          {activeTab === 'services' && (
-            <ServiceNotesManager
-              serviceNotes={serviceNotes}
-              onAddServiceNote={handleAddServiceNote}
-              onUpdateServiceStatus={handleUpdateServiceStatus}
-              onDeleteServiceNote={handleDeleteServiceNote}
-              spareparts={spareparts}
-              accSales={accSales}
-              onAddSparepart={handleAddSparepart}
-              onEditSparepart={handleEditSparepart}
-              onDeleteSparepart={handleDeleteSparepart}
             />
           )}
 

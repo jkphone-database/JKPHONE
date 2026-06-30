@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AccessoryProduct, SparepartProduct, AccessorySparepartSale, AccessorySparepartSaleItem } from '../types';
 import { Plus, Search, Trash2, Printer, ShoppingBag, ShoppingCart, ShieldAlert, CheckCircle2, AlertCircle, RefreshCw, Smartphone, ClipboardList, Send, Edit, X } from 'lucide-react';
 
@@ -11,6 +11,7 @@ interface AccessoriesAndSparepartsProps {
   onDeleteAccessory: (id: string) => void;
   onAddAccSale: (sale: Omit<AccessorySparepartSale, 'id' | 'invoiceNumber'>) => void;
   onDeleteAccSale: (id: string) => void;
+  userRole?: 'atasan' | 'karyawan';
 }
 
 export default function AccessoriesAndSpareparts({
@@ -21,7 +22,8 @@ export default function AccessoriesAndSpareparts({
   onEditAccessory,
   onDeleteAccessory,
   onAddAccSale,
-  onDeleteAccSale
+  onDeleteAccSale,
+  userRole = 'atasan'
 }: AccessoriesAndSparepartsProps) {
 
   const formatIDR = (num: number) => {
@@ -34,6 +36,13 @@ export default function AccessoriesAndSpareparts({
 
   // Local tabs
   const [activeTab, setActiveTab] = useState<'stok-acc' | 'kasir' | 'riwayat'>('stok-acc');
+
+  // Force tab to 'stok-acc' for employees
+  useEffect(() => {
+    if (userRole === 'karyawan' && activeTab !== 'stok-acc') {
+      setActiveTab('stok-acc');
+    }
+  }, [userRole, activeTab]);
 
   // Search & Filters
   const [searchAcc, setSearchAcc] = useState('');
@@ -229,7 +238,7 @@ export default function AccessoriesAndSpareparts({
       notes: cartNotes.trim() || undefined
     });
 
-    alert('Nota penjualan aksesoris / sparepart berhasil dibuat!');
+    alert('Nota penjualan aksesoris berhasil dibuat!');
     setCart([]);
     setCustomerName('');
     setCustomerPhone('');
@@ -252,7 +261,7 @@ export default function AccessoriesAndSpareparts({
 
   // Generate WhatsApp Message
   const getWhatsAppMessage = (sale: AccessorySparepartSale) => {
-    const header = `*JK PHONE - NOTA PENJUALAN AKSESORIS & SPAREPART*\n-----------------------------------------\n`;
+    const header = `*JK PHONE - NOTA PENJUALAN AKSESORIS*\n-----------------------------------------\n`;
     const meta = `*No Nota:* ${sale.invoiceNumber}\n*Tanggal:* ${sale.date}\n*Pelanggan:* ${sale.customerName}\n*Bayar via:* ${sale.paymentMethod}\n-----------------------------------------\n`;
     
     let itemsText = `*Rincian Belanja:*\n`;
@@ -260,7 +269,7 @@ export default function AccessoriesAndSpareparts({
       itemsText += `${idx+1}. ${item.name} (${item.type})\n    ${item.qty} pcs x ${formatIDR(item.price)} = *${formatIDR(item.total)}*\n`;
     });
     
-    const footer = `-----------------------------------------\n*TOTAL BAYAR: ${formatIDR(sale.totalAmount)}*\n\nTerima kasih telah berbelanja di *JK PHONE*!\nHubungi kami jika ada keluhan atau kebutuhan sparepart lainnya.`;
+    const footer = `-----------------------------------------\n*TOTAL BAYAR: ${formatIDR(sale.totalAmount)}*\n\nTerima kasih telah berbelanja di *JK PHONE*!\nHubungi kami jika ada keluhan atau kebutuhan aksesoris lainnya.`;
     
     return encodeURIComponent(header + meta + itemsText + footer);
   };
@@ -296,32 +305,34 @@ export default function AccessoriesAndSpareparts({
       )}
 
       {/* Primary tab bar */}
-      <div className="flex border-b border-slate-100" id="acc-tabs-nav">
-        <button
-          onClick={() => setActiveTab('stok-acc')}
-          className={`pb-4 px-5 font-semibold text-sm border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'stok-acc' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <ShoppingBag className="h-4 w-4" /> Stok Aksesoris
-        </button>
-        <button
-          onClick={() => setActiveTab('kasir')}
-          className={`pb-4 px-5 font-semibold text-sm border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'kasir' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <ShoppingCart className="h-4 w-4" /> Kasir Penjualan
-        </button>
-        <button
-          onClick={() => setActiveTab('riwayat')}
-          className={`pb-4 px-5 font-semibold text-sm border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'riwayat' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <ClipboardList className="h-4 w-4" /> Riwayat Nota
-        </button>
-      </div>
+      {userRole !== 'karyawan' && (
+        <div className="flex border-b border-slate-100" id="acc-tabs-nav">
+          <button
+            onClick={() => setActiveTab('stok-acc')}
+            className={`pb-4 px-5 font-semibold text-sm border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'stok-acc' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <ShoppingBag className="h-4 w-4" /> Stok Aksesoris
+          </button>
+          <button
+            onClick={() => setActiveTab('kasir')}
+            className={`pb-4 px-5 font-semibold text-sm border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'kasir' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <ShoppingCart className="h-4 w-4" /> Kasir Penjualan
+          </button>
+          <button
+            onClick={() => setActiveTab('riwayat')}
+            className={`pb-4 px-5 font-semibold text-sm border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'riwayat' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <ClipboardList className="h-4 w-4" /> Riwayat Nota
+          </button>
+        </div>
+      )}
 
       {/* VIEW 1: STOK AKSESORIS */}
       {activeTab === 'stok-acc' && (
@@ -337,22 +348,24 @@ export default function AccessoriesAndSpareparts({
                 className="w-full pl-10 pr-4 py-2 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               />
             </div>
-            <button
-              onClick={() => {
-                setEditingAcc(null);
-                setAccPartNumber('');
-                setAccName('');
-                setAccCategory('Charger');
-                setAccPurchase(0);
-                setAccSelling(0);
-                setAccStock(0);
-                setAccMinAlert(3);
-                setShowAccForm(true);
-              }}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm rounded-xl flex items-center gap-1.5 cursor-pointer transition shadow-xs"
-            >
-              <Plus className="h-4.5 w-4.5" /> Tambah Aksesoris
-            </button>
+            {userRole !== 'karyawan' && (
+              <button
+                onClick={() => {
+                  setEditingAcc(null);
+                  setAccPartNumber('');
+                  setAccName('');
+                  setAccCategory('Charger');
+                  setAccPurchase(0);
+                  setAccSelling(0);
+                  setAccStock(0);
+                  setAccMinAlert(3);
+                  setShowAccForm(true);
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm rounded-xl flex items-center gap-1.5 cursor-pointer transition shadow-xs"
+              >
+                <Plus className="h-4.5 w-4.5" /> Tambah Aksesoris
+              </button>
+            )}
           </div>
 
           {/* Form Modal / Panel */}
@@ -459,18 +472,18 @@ export default function AccessoriesAndSpareparts({
                     <th className="py-3.5 px-6 font-semibold">Kode Part</th>
                     <th className="py-3.5 px-4 font-semibold">Nama Aksesoris</th>
                     <th className="py-3.5 px-4 font-semibold">Kategori</th>
-                    <th className="py-3.5 px-4 text-right font-semibold">Harga Modal</th>
+                    {userRole !== 'karyawan' && <th className="py-3.5 px-4 text-right font-semibold">Harga Modal</th>}
                     <th className="py-3.5 px-4 text-right font-semibold">Harga Jual</th>
                     <th className="py-3.5 px-4 text-center font-semibold">Stok Sisa</th>
-                    <th className="py-3.5 px-4 text-center font-semibold text-indigo-600">Terjual</th>
-                    <th className="py-3.5 px-4 text-right font-semibold text-emerald-600">Laba Bersih</th>
-                    <th className="py-3.5 px-6 text-center font-semibold">Aksi</th>
+                    {userRole !== 'karyawan' && <th className="py-3.5 px-4 text-center font-semibold text-indigo-600">Terjual</th>}
+                    {userRole !== 'karyawan' && <th className="py-3.5 px-4 text-right font-semibold text-emerald-600">Laba Bersih</th>}
+                    {userRole !== 'karyawan' && <th className="py-3.5 px-6 text-center font-semibold">Aksi</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {filteredAccessories.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="text-center py-10 text-slate-400">Tidak ada produk aksesoris ditemukan.</td>
+                      <td colSpan={userRole === 'karyawan' ? 5 : 9} className="text-center py-10 text-slate-400">Tidak ada produk aksesoris ditemukan.</td>
                     </tr>
                   ) : (
                     filteredAccessories.map(item => {
@@ -494,7 +507,7 @@ export default function AccessoriesAndSpareparts({
                           <td className="py-3 px-4">
                             <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs">{item.category}</span>
                           </td>
-                          <td className="py-3 px-4 text-right font-medium text-slate-500">{formatIDR(item.purchasePrice)}</td>
+                          {userRole !== 'karyawan' && <td className="py-3 px-4 text-right font-medium text-slate-500">{formatIDR(item.purchasePrice)}</td>}
                           <td className="py-3 px-4 text-right font-bold text-slate-900">{formatIDR(item.sellingPrice)}</td>
                           <td className="py-3 px-4 text-center">
                             <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
@@ -503,16 +516,20 @@ export default function AccessoriesAndSpareparts({
                               {item.stock} unit {isLowStock && '⚠️'}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-center font-extrabold text-indigo-600">{soldQty} pcs</td>
-                          <td className={`py-3 px-4 text-right font-black ${netProfit > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                            {netProfit > 0 ? formatIDR(netProfit) : '-'}
-                          </td>
-                          <td className="py-3 px-6 text-center">
-                            <div className="flex gap-2 justify-center">
-                              <button onClick={() => startEditAcc(item)} className="p-1 hover:bg-slate-100 text-indigo-600 rounded" title="Edit"><Edit className="h-4 w-4" /></button>
-                              <button onClick={() => { if(confirm('Hapus aksesoris ini?')) onDeleteAccessory(item.id); }} className="p-1 hover:bg-rose-50 text-rose-500 rounded" title="Hapus"><Trash2 className="h-4 w-4" /></button>
-                            </div>
-                          </td>
+                          {userRole !== 'karyawan' && <td className="py-3 px-4 text-center font-extrabold text-indigo-600">{soldQty} pcs</td>}
+                          {userRole !== 'karyawan' && (
+                            <td className={`py-3 px-4 text-right font-black ${netProfit > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                              {netProfit > 0 ? formatIDR(netProfit) : '-'}
+                            </td>
+                          )}
+                          {userRole !== 'karyawan' && (
+                            <td className="py-3 px-6 text-center">
+                              <div className="flex gap-2 justify-center">
+                                <button onClick={() => startEditAcc(item)} className="p-1 hover:bg-slate-100 text-indigo-600 rounded" title="Edit"><Edit className="h-4 w-4" /></button>
+                                <button onClick={() => { if(confirm('Hapus aksesoris ini?')) onDeleteAccessory(item.id); }} className="p-1 hover:bg-rose-50 text-rose-500 rounded" title="Hapus"><Trash2 className="h-4 w-4" /></button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       );
                     })
@@ -531,51 +548,21 @@ export default function AccessoriesAndSpareparts({
           <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs lg:col-span-2 space-y-6">
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
               <ShoppingCart className="h-5 w-5 text-indigo-600" />
-              <h3 className="font-bold text-slate-900 text-md">Pilih Item Aksesoris / Sparepart</h3>
+              <h3 className="font-bold text-slate-900 text-md">Pilih Item Aksesoris</h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1.5">TIPE PRODUK</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleItemTypeChange('Aksesoris')}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                      selectedItemType === 'Aksesoris' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    Aksesoris
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleItemTypeChange('Sparepart')}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                      selectedItemType === 'Sparepart' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    Spareparts
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1.5">PILIH PRODUK (STOK READY)</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1.5">PILIH AKSESORIS (STOK READY)</label>
                 <select
                   value={selectedItemId}
                   onChange={(e) => handleItemIdChange(e.target.value)}
                   className="w-full p-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                 >
                   <option value="">-- Pilih --</option>
-                  {selectedItemType === 'Aksesoris' ? (
-                    accessories.filter(a => a.stock > 0).map(a => (
-                      <option key={a.id} value={a.id}>{a.name} (Sisa {a.stock})</option>
-                    ))
-                  ) : (
-                    spareparts.filter(s => s.stock > 0).map(s => (
-                      <option key={s.id} value={s.id}>{s.name} (Sisa {s.stock})</option>
-                    ))
-                  )}
+                  {accessories.filter(a => a.stock > 0).map(a => (
+                    <option key={a.id} value={a.id}>{a.name} (Sisa {a.stock})</option>
+                  ))}
                 </select>
               </div>
 
@@ -711,7 +698,7 @@ export default function AccessoriesAndSpareparts({
               <label className="block text-xs font-semibold text-slate-500 mb-1">CATATAN NOTA</label>
               <input
                 type="text"
-                placeholder="e.g. Garansi toko sparepart 3 hari"
+                placeholder="e.g. Garansi toko aksesoris 3 hari"
                 value={cartNotes}
                 onChange={(e) => setCartNotes(e.target.value)}
                 className="w-full p-2.5 border border-slate-200 rounded-xl text-sm"
@@ -836,7 +823,7 @@ export default function AccessoriesAndSpareparts({
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="acc-receipt-modal">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
-              <span className="font-bold text-sm tracking-wide">NOTA PENJUALAN AKSESORIS & SPAREPART</span>
+              <span className="font-bold text-sm tracking-wide">NOTA PENJUALAN AKSESORIS</span>
               <button onClick={() => setSelectedSale(null)} className="text-slate-300 hover:text-white p-1 rounded-full hover:bg-white/10"><X className="h-5 w-5" /></button>
             </div>
 

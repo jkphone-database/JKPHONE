@@ -10,6 +10,7 @@ interface StockAndBarangMasukProps {
   onEditBarangMasuk: (item: BarangMasuk) => void;
   onDeleteBarangMasuk: (id: string) => void;
   masterProducts?: MasterProduct[];
+  userRole?: 'atasan' | 'karyawan';
 }
 
 export default function StockAndBarangMasuk({ 
@@ -18,7 +19,8 @@ export default function StockAndBarangMasuk({
   onAddBarangMasuk, 
   onEditBarangMasuk,
   onDeleteBarangMasuk,
-  masterProducts = []
+  masterProducts = [],
+  userRole = 'atasan'
 }: StockAndBarangMasukProps) {
   
   // Format currency helper
@@ -32,11 +34,26 @@ export default function StockAndBarangMasuk({
 
   // Local State
   const [activeSubTab, setActiveSubTab] = useState<'stok' | 'form-masuk' | 'riwayat'>('stok');
+
+  // Force activeSubTab to 'stok' for employee role
+  React.useEffect(() => {
+    if (userRole === 'karyawan' && activeSubTab !== 'stok') {
+      setActiveSubTab('stok');
+    }
+  }, [userRole, activeSubTab]);
   
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [brandFilter, setBrandFilter] = useState('Semua');
   const [periodFilter, setPeriodFilter] = useState('Semua'); // monthly period filter e.g. "2026-06"
+
+  // Stock Stats and Calculation States
+  const [stockStatsView, setStockStatsView] = useState<'current' | 'monthly'>('current');
+  const [stockStatsMonth, setStockStatsMonth] = useState<string>(() => {
+    const d = new Date();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${d.getFullYear()}-${month}`;
+  });
 
   // Form State
   const [isManualInput, setIsManualInput] = useState<boolean>(() => {
@@ -173,6 +190,18 @@ export default function StockAndBarangMasuk({
   const totalStockPotentialValue = filteredProducts.reduce((sum, p) => sum + (p.sellingPrice * p.stock), 0);
   const totalStockPotentialProfit = totalStockPotentialValue - totalStockInvestment;
 
+  // Monthly procurement statistics (Barang Masuk per Bulan)
+  const monthlyBM = barangMasukList.filter(bm => {
+    const matchesMonth = stockStatsMonth === 'Semua' || bm.date.startsWith(stockStatsMonth);
+    const matchesBrand = brandFilter === 'Semua' || bm.brand === brandFilter;
+    const matchesSearch = searchQuery === '' || `${bm.brand} ${bm.modelName} ${bm.supplier} ${bm.signalType || ''}`.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesMonth && matchesBrand && matchesSearch;
+  });
+
+  const totalMonthlyInvestment = monthlyBM.reduce((sum, bm) => sum + (bm.purchasePrice * bm.qty), 0);
+  const totalMonthlyPotentialValue = monthlyBM.reduce((sum, bm) => sum + ((bm.sellingPrice || 0) * bm.qty), 0);
+  const totalMonthlyPotentialProfit = totalMonthlyPotentialValue - totalMonthlyInvestment;
+
   // Handle Form Submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -267,76 +296,157 @@ export default function StockAndBarangMasuk({
     <div className="space-y-6" id="stock-section-wrapper">
       
       {/* Sub-tab Navigation */}
-      <div className="flex border-b border-slate-100" id="stock-tabs-nav">
-        <button
-          id="btn-subtab-stok"
-          onClick={() => setActiveSubTab('stok')}
-          className={`pb-4 px-6 font-semibold text-sm border-b-2 transition cursor-pointer ${
-            activeSubTab === 'stok'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          Daftar Stok HP & Laba Rugi
-        </button>
-        <button
-          id="btn-subtab-form"
-          onClick={() => {
-            setEditingBmItem(null);
-            setFormQty(1);
-            setFormPurchasePrice(0);
-            setFormSellingPrice(0);
-            setFormSupplier('');
-            setFormImeiInput('');
-            setFormNotes('');
-            setFormSignalType('iBox');
-            setActiveSubTab('form-masuk');
-          }}
-          className={`pb-4 px-6 font-semibold text-sm border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-            activeSubTab === 'form-masuk'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <Plus className="h-4 w-4" /> Catat Barang Masuk (Restock)
-        </button>
-        <button
-          id="btn-subtab-riwayat"
-          onClick={() => setActiveSubTab('riwayat')}
-          className={`pb-4 px-6 font-semibold text-sm border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-            activeSubTab === 'riwayat'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <ClipboardList className="h-4 w-4" /> Log Riwayat Barang Masuk
-        </button>
-      </div>
+      {userRole !== 'karyawan' && (
+        <div className="flex border-b border-slate-100" id="stock-tabs-nav">
+          <button
+            id="btn-subtab-stok"
+            onClick={() => setActiveSubTab('stok')}
+            className={`pb-4 px-6 font-semibold text-sm border-b-2 transition cursor-pointer ${
+              activeSubTab === 'stok'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            Daftar Stok HP & Laba Rugi
+          </button>
+          <button
+            id="btn-subtab-form"
+            onClick={() => {
+              setEditingBmItem(null);
+              setFormQty(1);
+              setFormPurchasePrice(0);
+              setFormSellingPrice(0);
+              setFormSupplier('');
+              setFormImeiInput('');
+              setFormNotes('');
+              setFormSignalType('iBox');
+              setActiveSubTab('form-masuk');
+            }}
+            className={`pb-4 px-6 font-semibold text-sm border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+              activeSubTab === 'form-masuk'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <Plus className="h-4 w-4" /> Catat Barang Masuk (Restock)
+          </button>
+          <button
+            id="btn-subtab-riwayat"
+            onClick={() => setActiveSubTab('riwayat')}
+            className={`pb-4 px-6 font-semibold text-sm border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+              activeSubTab === 'riwayat'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <ClipboardList className="h-4 w-4" /> Log Riwayat Barang Masuk
+          </button>
+        </div>
+      )}
 
       {/* VIEW 1: DAFTAR STOK HP */}
       {activeSubTab === 'stok' && (
         <div className="space-y-4 animate-fade-in" id="stock-list-view">
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-sans">
-            <div className="bg-slate-50 border border-slate-100 p-5 rounded-2xl">
-              <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Total Modal Investasi HP</span>
-              <strong className="text-xl font-extrabold text-slate-800 mt-1 block">{formatIDR(totalStockInvestment)}</strong>
-              <span className="text-[10px] text-slate-400 mt-1 block">Rincian modal seluruh unit HP aktif</span>
-            </div>
-            <div className="bg-indigo-50 border border-indigo-100 p-5 rounded-2xl">
-              <span className="text-xs text-indigo-600 font-bold uppercase tracking-wider block">Total Nilai Jual HP</span>
-              <strong className="text-xl font-extrabold text-indigo-950 mt-1 block">{formatIDR(totalStockPotentialValue)}</strong>
-              <span className="text-[10px] text-indigo-500 mt-1 block">Omset kotor jika semua unit in-stock terjual</span>
-            </div>
-            <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl">
-              <span className="text-xs text-emerald-600 font-bold uppercase tracking-wider block">Estimasi Keuntungan (Laba Kotor)</span>
-              <strong className="text-xl font-extrabold text-emerald-950 mt-1 block flex items-center gap-1.5">
-                <TrendingUp className="h-5 w-5 text-emerald-600" />
-                {formatIDR(totalStockPotentialProfit)}
-              </strong>
-              <span className="text-[10px] text-emerald-500 mt-1 block">Margin keuntungan sisa stok HP aktif</span>
-            </div>
-          </div>
+          {/* Summary Control Header & Cards */}
+          {userRole !== 'karyawan' && (
+            <>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-2xl border border-slate-100 shadow-3xs gap-3" id="stock-calc-header">
+                <div>
+                  <h4 className="text-sm font-black text-slate-800">Kalkulator Modal & Nilai Jual HP</h4>
+                  <p className="text-[11px] text-slate-400 font-medium">Beralih antara sisa investasi stok aktif (Ready) dan pengadaan barang masuk bulanan</p>
+                </div>
+                
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Stats Mode Switcher */}
+                  <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200" id="stats-view-mode-toggle">
+                    <button
+                      type="button"
+                      id="btn-stats-current"
+                      onClick={() => setStockStatsView('current')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                        stockStatsView === 'current'
+                          ? 'bg-white text-indigo-700 shadow-3xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Sisa Stok Ready
+                    </button>
+                    <button
+                      type="button"
+                      id="btn-stats-monthly"
+                      onClick={() => setStockStatsView('monthly')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                        stockStatsView === 'monthly'
+                          ? 'bg-white text-indigo-700 shadow-3xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Pengadaan Bulanan
+                    </button>
+                  </div>
+
+                  {/* Monthly Filter Dropdown */}
+                  {stockStatsView === 'monthly' && (
+                    <select
+                      id="select-stats-month"
+                      value={stockStatsMonth}
+                      onChange={(e) => setStockStatsMonth(e.target.value)}
+                      className="bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer text-slate-700 font-sans"
+                    >
+                      {uniquePeriods.map(period => (
+                        <option key={period} value={period}>
+                          {period === 'Semua' ? 'Semua Periode' : `Bulan: ${period}`}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-sans" id="stock-summary-cards">
+                {/* Card 1: Modal Investasi */}
+                <div className="bg-slate-50 border border-slate-100 p-5 rounded-2xl">
+                  <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">
+                    {stockStatsView === 'current' ? 'Total Modal Investasi HP' : `Modal Investasi HP Masuk (${stockStatsMonth === 'Semua' ? 'Semua' : stockStatsMonth})`}
+                  </span>
+                  <strong className="text-xl font-extrabold text-slate-800 mt-1 block">
+                    {stockStatsView === 'current' ? formatIDR(totalStockInvestment) : formatIDR(totalMonthlyInvestment)}
+                  </strong>
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    {stockStatsView === 'current' ? 'Rincian modal seluruh unit HP aktif saat ini' : 'Total biaya modal untuk unit masuk pada periode ini'}
+                  </span>
+                </div>
+
+                {/* Card 2: Total Nilai Jual */}
+                <div className="bg-indigo-50 border border-indigo-100 p-5 rounded-2xl">
+                  <span className="text-xs text-indigo-600 font-bold uppercase tracking-wider block">
+                    {stockStatsView === 'current' ? 'Total Nilai Jual HP' : `Total Proyeksi Jual (${stockStatsMonth === 'Semua' ? 'Semua' : stockStatsMonth})`}
+                  </span>
+                  <strong className="text-xl font-extrabold text-indigo-950 mt-1 block">
+                    {stockStatsView === 'current' ? formatIDR(totalStockPotentialValue) : formatIDR(totalMonthlyPotentialValue)}
+                  </strong>
+                  <span className="text-[10px] text-indigo-500 mt-1 block">
+                    {stockStatsView === 'current' ? 'Omset kotor jika semua unit in-stock terjual' : 'Proyeksi omset kotor jika semua unit masuk terjual'}
+                  </span>
+                </div>
+
+                {/* Card 3: Estimasi Keuntungan */}
+                <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl">
+                  <span className="text-xs text-emerald-600 font-bold uppercase tracking-wider block">
+                    {stockStatsView === 'current' ? 'Estimasi Keuntungan (Laba Kotor)' : `Proyeksi Untung (${stockStatsMonth === 'Semua' ? 'Semua' : stockStatsMonth})`}
+                  </span>
+                  <strong className="text-xl font-extrabold text-emerald-950 mt-1 block flex items-center gap-1.5">
+                    <TrendingUp className="h-5 w-5 text-emerald-600" />
+                    {stockStatsView === 'current' ? formatIDR(totalStockPotentialProfit) : formatIDR(totalMonthlyPotentialProfit)}
+                  </strong>
+                  <span className="text-[10px] text-emerald-500 mt-1 block">
+                    {stockStatsView === 'current' ? 'Margin keuntungan sisa stok HP aktif saat ini' : 'Estimasi keuntungan kotor dari unit masuk'}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Filter Bar */}
           <div className="flex flex-col md:flex-row gap-3 bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs" id="stock-filters">
@@ -374,9 +484,9 @@ export default function StockAndBarangMasuk({
                   <tr className="bg-slate-50/70 border-b border-slate-100 text-slate-400 text-xs uppercase font-semibold">
                     <th className="py-4 px-6">Informasi HP & Sinyal</th>
                     <th className="py-4 px-3">Kondisi</th>
-                    <th className="py-4 px-3 text-right">Harga Modal Beli</th>
+                    {userRole !== 'karyawan' && <th className="py-4 px-3 text-right">Harga Modal Beli</th>}
                     <th className="py-4 px-3 text-right">Harga Jual Toko</th>
-                    <th className="py-4 px-3 text-right text-emerald-700">Margin Laba</th>
+                    {userRole !== 'karyawan' && <th className="py-4 px-3 text-right text-emerald-700">Margin Laba</th>}
                     <th className="py-4 px-3 text-center">Sisa Stok</th>
                     <th className="py-4 px-6">IMEI Aktif di Toko</th>
                   </tr>
@@ -384,7 +494,7 @@ export default function StockAndBarangMasuk({
                 <tbody className="divide-y divide-slate-50">
                   {filteredProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-12 text-slate-400">
+                      <td colSpan={userRole === 'karyawan' ? 5 : 7} className="text-center py-12 text-slate-400">
                         Tidak ada kecocokan stok barang ditemukan.
                       </td>
                     </tr>
@@ -423,18 +533,22 @@ export default function StockAndBarangMasuk({
                               {prod.condition}
                             </span>
                           </td>
-                          <td className="py-4 px-3 text-right font-medium text-slate-600">
-                            {formatIDR(prod.purchasePrice)}
-                          </td>
+                          {userRole !== 'karyawan' && (
+                            <td className="py-4 px-3 text-right font-medium text-slate-600">
+                              {formatIDR(prod.purchasePrice)}
+                            </td>
+                          )}
                           <td className="py-4 px-3 text-right font-bold text-slate-900">
                             {formatIDR(prod.sellingPrice)}
                           </td>
-                          <td className="py-4 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">
-                            {formatIDR(profitMargin)}
-                            <span className="block text-[9px] text-slate-400 font-medium">
-                              ({((profitMargin / prod.purchasePrice) * 100).toFixed(1)}% Laba)
-                            </span>
-                          </td>
+                          {userRole !== 'karyawan' && (
+                            <td className="py-4 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">
+                              {formatIDR(profitMargin)}
+                              <span className="block text-[9px] text-slate-400 font-medium">
+                                ({((profitMargin / prod.purchasePrice) * 100).toFixed(1)}% Laba)
+                              </span>
+                            </td>
+                          )}
                           <td className="py-4 px-3 text-center">
                             <span className={`inline-block px-3 py-1 rounded-full text-xs font-extrabold ${
                               prod.stock === 0 
@@ -637,22 +751,20 @@ export default function StockAndBarangMasuk({
                       onChange={(e) => setFormBrand(e.target.value)}
                       className="w-full p-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     >
-                      <option value="Apple">Apple (iPhone)</option>
-                      <option value="Samsung">Samsung</option>
-                      <option value="Xiaomi">Xiaomi</option>
-                      <option value="Oppo">Oppo</option>
-                      <option value="Vivo">Vivo</option>
-                      <option value="Realme">Realme</option>
-                      <option value="Infinix">Infinix</option>
-                      <option value="Itel">Itel</option>
-                      <option value="Tecno">Tecno</option>
-                      <option value="Huawei">Huawei</option>
-                      <option value="ZTE">ZTE</option>
-                      <option value="Poco">Poco</option>
-                      <option value="Motorola">Motorola</option>
-                      <option value="Villaon">Villaon</option>
-                      <option value="Honor">Honor</option>
-                      <option value="Lainnya">Lainnya</option>
+                      {(() => {
+                        const DEFAULT_BRANDS = [
+                          'Apple', 'Samsung', 'Xiaomi', 'Oppo', 'Vivo', 
+                          'Realme', 'Infinix', 'Itel', 'Tecno', 'Huawei', 
+                          'ZTE', 'Poco', 'Motorola', 'Villaon', 'Honor', 'Lainnya'
+                        ];
+                        const saved = localStorage.getItem('tokohp_master_brands');
+                        const brandsList = saved ? JSON.parse(saved) : DEFAULT_BRANDS;
+                        return brandsList.map((brand: string) => (
+                          <option key={brand} value={brand}>
+                            {brand === 'Apple' ? 'Apple (iPhone)' : brand}
+                          </option>
+                        ));
+                      })()}
                     </select>
                   </div>
 

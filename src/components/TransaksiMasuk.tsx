@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { PhoneProduct, Transaction, TransactionItem, BcaMutation } from '../types';
+import { PhoneProduct, Transaction, TransactionItem, BcaMutation, BarangKeluar } from '../types';
 import { Plus, Search, FileText, ShoppingCart, User, Printer, CheckCircle2, AlertCircle, X, Trash2, Smartphone, Camera, Edit, Mail, Share2 } from 'lucide-react';
 import ImeiScannerModal from './ImeiScannerModal';
+import BarangKeluarList from './BarangKeluarList';
 
 interface TransaksiMasukProps {
   products: PhoneProduct[];
@@ -10,6 +11,10 @@ interface TransaksiMasukProps {
   onAddTransaction: (tx: Omit<Transaction, 'id' | 'invoiceNumber'>) => void;
   onEditTransaction: (tx: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
+  barangKeluarList: BarangKeluar[];
+  onAddBarangKeluar: (item: Omit<BarangKeluar, 'id'>) => void;
+  onDeleteBarangKeluar: (id: string) => void;
+  userRole?: 'atasan' | 'karyawan';
 }
 
 export default function TransaksiMasuk({
@@ -18,7 +23,11 @@ export default function TransaksiMasuk({
   mutations,
   onAddTransaction,
   onEditTransaction,
-  onDeleteTransaction
+  onDeleteTransaction,
+  barangKeluarList,
+  onAddBarangKeluar,
+  onDeleteBarangKeluar,
+  userRole = 'atasan'
 }: TransaksiMasukProps) {
 
   const formatIDR = (num: number) => {
@@ -30,7 +39,7 @@ export default function TransaksiMasuk({
   };
 
   // Local state
-  const [activeSubTab, setActiveSubTab] = useState<'daftar' | 'buat'>('daftar');
+  const [activeSubTab, setActiveSubTab] = useState<'daftar' | 'buat' | 'barang-keluar'>('daftar');
   const [searchQuery, setSearchQuery] = useState('');
   
   // Invoice Preview State
@@ -264,7 +273,7 @@ export default function TransaksiMasuk({
               : 'border-transparent text-slate-400 hover:text-slate-600'
           }`}
         >
-          Daftar Barang Keluar / Invoice Penjualan
+          Daftar Invoice Penjualan (Formal)
         </button>
         <button
           id="btn-tx-tab-buat"
@@ -291,6 +300,17 @@ export default function TransaksiMasuk({
           }`}
         >
           <Plus className="h-4 w-4" /> Kasir Penjualan HP (Checkout)
+        </button>
+        <button
+          id="btn-tx-tab-barang-keluar"
+          onClick={() => setActiveSubTab('barang-keluar')}
+          className={`pb-4 px-6 font-semibold text-sm border-b-2 transition cursor-pointer ${
+            activeSubTab === 'barang-keluar'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          Barang Keluar Manual / Lainnya
         </button>
       </div>
 
@@ -394,14 +414,16 @@ export default function TransaksiMasuk({
                                 >
                                   <Printer className="h-4.5 w-4.5" />
                                 </button>
-                                <button
-                                  id={`btn-edit-invoice-${tx.id}`}
-                                  onClick={() => startEditTransaction(tx)}
-                                  className="p-1.5 hover:bg-slate-100 text-amber-600 rounded-lg transition cursor-pointer"
-                                  title="Edit Invoice"
-                                >
-                                  <Edit className="h-4.5 w-4.5" />
-                                </button>
+                                {userRole !== 'karyawan' && (
+                                  <button
+                                    id={`btn-edit-invoice-${tx.id}`}
+                                    onClick={() => startEditTransaction(tx)}
+                                    className="p-1.5 hover:bg-slate-100 text-amber-600 rounded-lg transition cursor-pointer"
+                                    title="Edit Invoice"
+                                  >
+                                    <Edit className="h-4.5 w-4.5" />
+                                  </button>
+                                )}
                                 <a
                                   href={`https://api.whatsapp.com/send?phone=${tx.customerPhone ? tx.customerPhone.replace(/\D/g, '') : ''}&text=${encodeURIComponent(
                                     `Halo Kak ${tx.customerName},\n\nTerima kasih telah berbelanja di JK PHONE. Berikut detail transaksi Anda:\n\n*Nota:* ${tx.invoiceNumber}\n*Tanggal:* ${tx.date}\n\n*Item HP:*\n${tx.items.map((it: any) => `- ${it.brand} ${it.modelName} (IMEI: ${it.imei}): ${formatIDR(it.price)}`).join('\n')}\n\n*Diskon:* ${formatIDR(tx.discount)}\n*Total Pembayaran:* ${formatIDR(tx.totalAmount)}\n*Metode:* ${tx.paymentMethod}\n\n_Semoga awet dan bermanfaat! Jika ada kendala, silakan hubungi kami._`
@@ -422,18 +444,20 @@ export default function TransaksiMasuk({
                                 >
                                   <Mail className="h-4.5 w-4.5" />
                                 </a>
-                                <button
-                                  id={`btn-del-invoice-${tx.id}`}
-                                  onClick={() => {
-                                    if (confirm('Apakah Anda yakin ingin membatalkan/menghapus invoice ini? HP yang terjual akan dikembalikan ke dalam stok.')) {
-                                      onDeleteTransaction(tx.id);
-                                    }
-                                  }}
-                                  className="p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg transition cursor-pointer"
-                                  title="Batalkan Invoice"
-                                >
-                                  <Trash2 className="h-4.5 w-4.5" />
-                                </button>
+                                {userRole !== 'karyawan' && (
+                                  <button
+                                    id={`btn-del-invoice-${tx.id}`}
+                                    onClick={() => {
+                                      if (confirm('Apakah Anda yakin ingin membatalkan/menghapus invoice ini? HP yang terjual akan dikembalikan ke dalam stok.')) {
+                                        onDeleteTransaction(tx.id);
+                                      }
+                                    }}
+                                    className="p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg transition cursor-pointer"
+                                    title="Batalkan Invoice"
+                                  >
+                                    <Trash2 className="h-4.5 w-4.5" />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -528,7 +552,9 @@ export default function TransaksiMasuk({
                   {/* Sinyal info badge */}
                   <div className="md:col-span-2 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
                     <span>Jenis Sinyal HP: <strong className="text-indigo-600">{selectedProduct.signalType || 'iBox'}</strong></span>
-                    <span>Harga Modal Unit: <strong>{formatIDR(selectedProduct.purchasePrice)}</strong></span>
+                    {userRole !== 'karyawan' && (
+                      <span>Harga Modal Unit: <strong>{formatIDR(selectedProduct.purchasePrice)}</strong></span>
+                    )}
                   </div>
 
                   <div className="md:col-span-2 flex justify-end">
@@ -801,6 +827,18 @@ export default function TransaksiMasuk({
         </div>
       )}
 
+      {/* VIEW 3: BARANG KELUAR MANUAL & PENYESUAIAN */}
+      {activeSubTab === 'barang-keluar' && (
+        <div className="animate-fade-in" id="barang-keluar-subtab-view">
+          <BarangKeluarList
+            products={products}
+            barangKeluarList={barangKeluarList}
+            onAddBarangKeluar={onAddBarangKeluar}
+            onDeleteBarangKeluar={onDeleteBarangKeluar}
+          />
+        </div>
+      )}
+
       {/* MODAL PREVIEW INVOICE UNTUK DICETAK */}
       {selectedInvoice && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="invoice-modal">
@@ -901,21 +939,61 @@ export default function TransaksiMasuk({
             </div>
 
             {/* Modal Action Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+              {/* Left Action: Delete/Cancel Invoice */}
               <button
-                id="btn-invoice-print-act"
-                onClick={() => window.print()}
-                className="px-5 py-2.5 bg-indigo-900 hover:bg-indigo-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer"
+                id="btn-invoice-delete-act"
+                onClick={() => {
+                  if (confirm('Apakah Anda yakin ingin membatalkan/menghapus invoice ini? HP yang terjual akan dikembalikan ke dalam stok.')) {
+                    onDeleteTransaction(selectedInvoice.id);
+                    setSelectedInvoice(null);
+                  }
+                }}
+                className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
               >
-                <Printer className="h-4 w-4" /> Cetak Nota Penjualan
+                <Trash2 className="h-4 w-4" /> Batalkan & Hapus Invoice
               </button>
-              <button
-                id="btn-invoice-close-act"
-                onClick={() => setSelectedInvoice(null)}
-                className="px-4 py-2.5 border border-slate-200 rounded-xl font-bold text-xs text-slate-500 hover:bg-slate-100 transition cursor-pointer"
-              >
-                Tutup
-              </button>
+
+              {/* Right Actions: WhatsApp, Email, Print, Close */}
+              <div className="flex flex-wrap items-center justify-center sm:justify-end gap-1.5">
+                <a
+                  href={`https://api.whatsapp.com/send?phone=${selectedInvoice.customerPhone ? selectedInvoice.customerPhone.replace(/\D/g, '') : ''}&text=${encodeURIComponent(
+                    `Halo Kak ${selectedInvoice.customerName},\n\nTerima kasih telah berbelanja di JK PHONE. Berikut detail transaksi Anda:\n\n*Nota:* ${selectedInvoice.invoiceNumber}\n*Tanggal:* ${selectedInvoice.date}\n\n*Item HP:*\n${selectedInvoice.items.map((it: any) => `- ${it.brand} ${it.modelName} (${it.storage} • ${it.color} • ${it.condition})\n  IMEI: ${it.imei}\n  Harga: ${formatIDR(it.price)}`).join('\n')}\n\n*Diskon:* ${formatIDR(selectedInvoice.discount)}\n*Total Pembayaran:* ${formatIDR(selectedInvoice.totalAmount)}\n*Metode:* ${selectedInvoice.paymentMethod}\n\n_Semoga awet dan bermanfaat! Jika ada kendala, silakan hubungi kami._`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  title="Kirim via WhatsApp"
+                >
+                  <Share2 className="h-4 w-4" /> WhatsApp
+                </a>
+                
+                <a
+                  href={`mailto:${selectedInvoice.customerEmail || ''}?subject=${encodeURIComponent(`Invoice JK PHONE ${selectedInvoice.invoiceNumber}`)}&body=${encodeURIComponent(
+                    `Halo Kak ${selectedInvoice.customerName},\n\nTerima kasih telah berbelanja di JK PHONE. Berikut detail transaksi Anda:\n\nNota: ${selectedInvoice.invoiceNumber}\nTanggal: ${selectedInvoice.date}\n\nItem HP:\n${selectedInvoice.items.map((it: any) => `- ${it.brand} ${it.modelName} (${it.storage} • ${it.color} • ${it.condition})\n  IMEI: ${it.imei}\n  Harga: ${formatIDR(it.price)}`).join('\n')}\n\nDiskon: ${formatIDR(selectedInvoice.discount)}\nTotal Pembayaran: ${formatIDR(selectedInvoice.totalAmount)}\nMetode: ${selectedInvoice.paymentMethod}\n\nSemoga awet dan bermanfaat! Jika ada kendala, silakan hubungi kami.\n\nJK PHONE\nITC Roxy Mas Lantai Dasar No. 12B, Jakarta Barat\nHubungi: 0812-JKPHONE-888`
+                  )}`}
+                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  title="Kirim via Email"
+                >
+                  <Mail className="h-4 w-4" /> Email
+                </a>
+
+                <button
+                  id="btn-invoice-print-act"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-2 bg-indigo-950 hover:bg-indigo-900 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <Printer className="h-4 w-4" /> Cetak
+                </button>
+                
+                <button
+                  id="btn-invoice-close-act"
+                  onClick={() => setSelectedInvoice(null)}
+                  className="px-3.5 py-2 border border-slate-200 rounded-xl font-bold text-xs text-slate-500 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
           </div>
         </div>

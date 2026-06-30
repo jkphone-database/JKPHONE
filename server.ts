@@ -87,6 +87,69 @@ async function startServer() {
     }
   });
 
+  // Moota sync endpoint
+  app.post("/api/moota/sync", async (req, res) => {
+    try {
+      const { apiToken, bankId, isDemo } = req.body;
+      
+      if (isDemo || !apiToken) {
+        // Return realistic simulated Moota mutations for testing
+        const demoMutations = [
+          {
+            id: `moota-${Date.now()}-1`,
+            date: new Date().toISOString().split('T')[0],
+            description: "TRSF E-BANKING CR MOOTA-DEMO HADI PRANOTO",
+            amount: 3500000,
+            type: "CR",
+            rawText: "TRSF E-BANKING CR MOOTA-DEMO HADI PRANOTO Rp 3.500.000"
+          },
+          {
+            id: `moota-${Date.now()}-2`,
+            date: new Date().toISOString().split('T')[0],
+            description: "TRSF E-BANKING CR MOOTA-DEMO AMALIA PUTRI",
+            amount: 5200000,
+            type: "CR",
+            rawText: "TRSF E-BANKING CR MOOTA-DEMO AMALIA PUTRI Rp 5.200.000"
+          }
+        ];
+        return res.json({ success: true, transactions: demoMutations, isDemo: true });
+      }
+
+      // Real integration with Moota API
+      // URL: https://api.moota.co/v2/mutation?bank=bankId
+      const response = await fetch(`https://api.moota.co/v2/mutation?bank=${bankId || ""}`, {
+        headers: {
+          "Authorization": `Bearer ${apiToken}`,
+          "Accept": "application/json"
+        }
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        return res.status(400).json({ error: `Moota API returned status ${response.status}: ${errText}` });
+      }
+
+      const mootaData = await response.json() as any;
+      
+      const parsedTransactions = (mootaData.data || []).map((item: any) => {
+        const transType = String(item.type).toUpperCase() === "DEBIT" || String(item.type).toUpperCase() === "DB" ? "DB" : "CR";
+        return {
+          id: `moota-${item.id || Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          date: item.date ? item.date.split(" ")[0] : new Date().toISOString().split('T')[0],
+          description: item.description || `Moota transfer ${item.type}`,
+          amount: Number(item.amount) || 0,
+          type: transType,
+          rawText: `[MOOTA] ${item.description || ""} Rp ${Number(item.amount).toLocaleString('id-ID')}`
+        };
+      });
+
+      return res.json({ success: true, transactions: parsedTransactions, isDemo: false });
+    } catch (error: any) {
+      console.error("Error in /api/moota/sync:", error);
+      return res.status(500).json({ error: error?.message || "Internal Server Error" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

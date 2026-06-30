@@ -40,10 +40,29 @@ export default function MasterProductCatalog({
   
   const [activeSubTab, setActiveSubTab] = useState<'katalog' | 'historis'>('katalog');
 
+  // Brand States & Management
+  const DEFAULT_BRANDS = [
+    'Apple', 'Samsung', 'Xiaomi', 'Oppo', 'Vivo', 
+    'Realme', 'Infinix', 'Itel', 'Tecno', 'Huawei', 
+    'ZTE', 'Poco', 'Motorola', 'Villaon', 'Honor', 'Lainnya'
+  ];
+
+  const [brands, setBrands] = useState<string[]>(() => {
+    const saved = localStorage.getItem('tokohp_master_brands');
+    return saved ? JSON.parse(saved) : DEFAULT_BRANDS;
+  });
+
+  const [isManagingBrands, setIsManagingBrands] = useState(false);
+  const [newBrandInput, setNewBrandInput] = useState('');
+
   // Form states
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState('');
-  const [formBrand, setFormBrand] = useState('Apple');
+  const [formBrand, setFormBrand] = useState(() => {
+    const saved = localStorage.getItem('tokohp_master_brands');
+    const list = saved ? JSON.parse(saved) : DEFAULT_BRANDS;
+    return list.includes('Apple') ? 'Apple' : (list[0] || 'Lainnya');
+  });
   const [formModelName, setFormModelName] = useState('');
   const [formStorage, setFormStorage] = useState('128GB');
   const [formColorsText, setFormColorsText] = useState('');
@@ -57,10 +76,48 @@ export default function MasterProductCatalog({
   const resetForm = () => {
     setIsEditing(false);
     setEditId('');
-    setFormBrand('Apple');
+    setFormBrand(brands.includes('Apple') ? 'Apple' : (brands[0] || 'Lainnya'));
     setFormModelName('');
     setFormStorage('128GB');
     setFormColorsText('');
+  };
+
+  const handleAddBrand = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = newBrandInput.trim();
+    if (!trimmed) return;
+    if (brands.some(b => b.toLowerCase() === trimmed.toLowerCase())) {
+      alert('Merek tersebut sudah ada dalam daftar!');
+      return;
+    }
+    const updated = [...brands];
+    // Insert before 'Lainnya' if possible, or just append
+    const lainnyaIdx = updated.indexOf('Lainnya');
+    if (lainnyaIdx > -1) {
+      updated.splice(lainnyaIdx, 0, trimmed);
+    } else {
+      updated.push(trimmed);
+    }
+    setBrands(updated);
+    localStorage.setItem('tokohp_master_brands', JSON.stringify(updated));
+    setFormBrand(trimmed);
+    setNewBrandInput('');
+    alert(`Berhasil menambahkan merek "${trimmed}"!`);
+  };
+
+  const handleDeleteBrand = (brandToDelete: string) => {
+    if (brandToDelete === 'Lainnya') {
+      alert('Merek "Lainnya" tidak dapat dihapus.');
+      return;
+    }
+    if (confirm(`Yakin ingin menghapus merek "${brandToDelete}" dari daftar pilihan?`)) {
+      const updated = brands.filter(b => b !== brandToDelete);
+      setBrands(updated);
+      localStorage.setItem('tokohp_master_brands', JSON.stringify(updated));
+      if (formBrand === brandToDelete) {
+        setFormBrand(updated[0] || 'Lainnya');
+      }
+    }
   };
 
   // Submit Handler
@@ -230,29 +287,81 @@ export default function MasterProductCatalog({
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Brand Selection */}
               <div>
-                <label className="block text-[10px] font-extrabold tracking-wider text-slate-400 uppercase mb-1">Merek (Brand)</label>
-                <select
-                  value={formBrand}
-                  onChange={(e) => setFormBrand(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
-                >
-                  <option value="Apple">Apple</option>
-                  <option value="Samsung">Samsung</option>
-                  <option value="Xiaomi">Xiaomi</option>
-                  <option value="Oppo">Oppo</option>
-                  <option value="Vivo">Vivo</option>
-                  <option value="Realme">Realme</option>
-                  <option value="Infinix">Infinix</option>
-                  <option value="Itel">Itel</option>
-                  <option value="Tecno">Tecno</option>
-                  <option value="Huawei">Huawei</option>
-                  <option value="ZTE">ZTE</option>
-                  <option value="Poco">Poco</option>
-                  <option value="Motorola">Motorola</option>
-                  <option value="Villaon">Villaon</option>
-                  <option value="Honor">Honor</option>
-                  <option value="Lainnya">Lainnya</option>
-                </select>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-[10px] font-extrabold tracking-wider text-slate-400 uppercase">Merek (Brand)</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsManagingBrands(!isManagingBrands)}
+                    className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold transition flex items-center gap-0.5 cursor-pointer"
+                    id="btn-manage-brands"
+                  >
+                    {isManagingBrands ? ' Kembali ke Pilihan' : '✏️ Kelola Pilihan Brand'}
+                  </button>
+                </div>
+
+                {isManagingBrands ? (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5" id="brand-manager-container">
+                    <p className="text-[10px] text-slate-500 font-bold leading-normal">Tambah / hapus opsi merek:</p>
+                    
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="Nama brand baru..."
+                        value={newBrandInput}
+                        onChange={(e) => setNewBrandInput(e.target.value)}
+                        className="flex-1 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddBrand();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAddBrand()}
+                        className="px-2.5 py-1.5 bg-indigo-600 text-white rounded-lg text-[10px] font-bold hover:bg-indigo-500 transition cursor-pointer"
+                      >
+                        Tambah
+                      </button>
+                    </div>
+
+                    {/* tag cloud of brands */}
+                    <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto p-1.5 bg-white border border-slate-100 rounded-lg">
+                      {brands.map((brand) => (
+                        <div
+                          key={brand}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-50 border border-slate-200 rounded-md text-[10px] font-semibold text-slate-700"
+                        >
+                          <span>{brand}</span>
+                          {brand !== 'Lainnya' && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteBrand(brand)}
+                              className="text-slate-400 hover:text-rose-600 text-[9px] font-bold p-0.5 rounded transition cursor-pointer"
+                              title={`Hapus ${brand}`}
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <select
+                    value={formBrand}
+                    onChange={(e) => setFormBrand(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                    id="form-brand-select"
+                  >
+                    {brands.map((brand) => (
+                      <option key={brand} value={brand}>
+                        {brand}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* Model Name */}
