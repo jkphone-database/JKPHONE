@@ -14,7 +14,7 @@ interface TransaksiMasukProps {
   barangKeluarList: BarangKeluar[];
   onAddBarangKeluar: (item: Omit<BarangKeluar, 'id'>) => void;
   onDeleteBarangKeluar: (id: string) => void;
-  userRole?: 'atasan' | 'karyawan';
+  userRole?: 'owner' | 'staff';
 }
 
 export default function TransaksiMasuk({
@@ -27,7 +27,7 @@ export default function TransaksiMasuk({
   barangKeluarList,
   onAddBarangKeluar,
   onDeleteBarangKeluar,
-  userRole = 'atasan'
+  userRole = 'owner'
 }: TransaksiMasukProps) {
 
   const formatIDR = (num: number) => {
@@ -414,7 +414,7 @@ export default function TransaksiMasuk({
                                 >
                                   <Printer className="h-4.5 w-4.5" />
                                 </button>
-                                {userRole !== 'karyawan' && (
+                                {userRole !== 'staff' && (
                                   <button
                                     id={`btn-edit-invoice-${tx.id}`}
                                     onClick={() => startEditTransaction(tx)}
@@ -444,7 +444,7 @@ export default function TransaksiMasuk({
                                 >
                                   <Mail className="h-4.5 w-4.5" />
                                 </a>
-                                {userRole !== 'karyawan' && (
+                                {userRole !== 'staff' && (
                                   <button
                                     id={`btn-del-invoice-${tx.id}`}
                                     onClick={() => {
@@ -552,7 +552,7 @@ export default function TransaksiMasuk({
                   {/* Sinyal info badge */}
                   <div className="md:col-span-2 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
                     <span>Jenis Sinyal HP: <strong className="text-indigo-600">{selectedProduct.signalType || 'iBox'}</strong></span>
-                    {userRole !== 'karyawan' && (
+                    {userRole !== 'staff' && (
                       <span>Harga Modal Unit: <strong>{formatIDR(selectedProduct.purchasePrice)}</strong></span>
                     )}
                   </div>

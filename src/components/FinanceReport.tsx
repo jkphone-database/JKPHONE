@@ -459,7 +459,7 @@ export default function FinanceReport({
                 <span className="text-xs font-black text-rose-600">{formatIDR(metrics.totalOperatingExpense)}</span>
               </div>
               <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-                Biaya operasional bulanan seperti gaji karyawan, sewa, listrik, promosi, dan internet tercatat dalam {metrics.expensesCount} item pengeluaran.
+                Biaya operasional bulanan seperti gaji staff, sewa, listrik, promosi, dan internet tercatat dalam {metrics.expensesCount} item pengeluaran.
               </p>
             </div>
 

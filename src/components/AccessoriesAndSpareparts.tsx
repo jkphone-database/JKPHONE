@@ -11,7 +11,7 @@ interface AccessoriesAndSparepartsProps {
   onDeleteAccessory: (id: string) => void;
   onAddAccSale: (sale: Omit<AccessorySparepartSale, 'id' | 'invoiceNumber'>) => void;
   onDeleteAccSale: (id: string) => void;
-  userRole?: 'atasan' | 'karyawan';
+  userRole?: 'owner' | 'staff';
 }
 
 export default function AccessoriesAndSpareparts({
@@ -23,7 +23,7 @@ export default function AccessoriesAndSpareparts({
   onDeleteAccessory,
   onAddAccSale,
   onDeleteAccSale,
-  userRole = 'atasan'
+  userRole = 'owner'
 }: AccessoriesAndSparepartsProps) {
 
   const formatIDR = (num: number) => {
@@ -39,7 +39,7 @@ export default function AccessoriesAndSpareparts({
 
   // Force tab to 'stok-acc' for employees
   useEffect(() => {
-    if (userRole === 'karyawan' && activeTab !== 'stok-acc') {
+    if (userRole === 'staff' && activeTab !== 'stok-acc') {
       setActiveTab('stok-acc');
     }
   }, [userRole, activeTab]);
@@ -305,7 +305,7 @@ export default function AccessoriesAndSpareparts({
       )}
 
       {/* Primary tab bar */}
-      {userRole !== 'karyawan' && (
+      {userRole !== 'staff' && (
         <div className="flex border-b border-slate-100" id="acc-tabs-nav">
           <button
             onClick={() => setActiveTab('stok-acc')}
@@ -348,7 +348,7 @@ export default function AccessoriesAndSpareparts({
                 className="w-full pl-10 pr-4 py-2 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               />
             </div>
-            {userRole !== 'karyawan' && (
+            {userRole !== 'staff' && (
               <button
                 onClick={() => {
                   setEditingAcc(null);
@@ -472,18 +472,18 @@ export default function AccessoriesAndSpareparts({
                     <th className="py-3.5 px-6 font-semibold">Kode Part</th>
                     <th className="py-3.5 px-4 font-semibold">Nama Aksesoris</th>
                     <th className="py-3.5 px-4 font-semibold">Kategori</th>
-                    {userRole !== 'karyawan' && <th className="py-3.5 px-4 text-right font-semibold">Harga Modal</th>}
+                    {userRole !== 'staff' && <th className="py-3.5 px-4 text-right font-semibold">Harga Modal</th>}
                     <th className="py-3.5 px-4 text-right font-semibold">Harga Jual</th>
                     <th className="py-3.5 px-4 text-center font-semibold">Stok Sisa</th>
-                    {userRole !== 'karyawan' && <th className="py-3.5 px-4 text-center font-semibold text-indigo-600">Terjual</th>}
-                    {userRole !== 'karyawan' && <th className="py-3.5 px-4 text-right font-semibold text-emerald-600">Laba Bersih</th>}
-                    {userRole !== 'karyawan' && <th className="py-3.5 px-6 text-center font-semibold">Aksi</th>}
+                    {userRole !== 'staff' && <th className="py-3.5 px-4 text-center font-semibold text-indigo-600">Terjual</th>}
+                    {userRole !== 'staff' && <th className="py-3.5 px-4 text-right font-semibold text-emerald-600">Laba Bersih</th>}
+                    {userRole !== 'staff' && <th className="py-3.5 px-6 text-center font-semibold">Aksi</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {filteredAccessories.length === 0 ? (
                     <tr>
-                      <td colSpan={userRole === 'karyawan' ? 5 : 9} className="text-center py-10 text-slate-400">Tidak ada produk aksesoris ditemukan.</td>
+                      <td colSpan={userRole === 'staff' ? 5 : 9} className="text-center py-10 text-slate-400">Tidak ada produk aksesoris ditemukan.</td>
                     </tr>
                   ) : (
                     filteredAccessories.map(item => {
@@ -507,7 +507,7 @@ export default function AccessoriesAndSpareparts({
                           <td className="py-3 px-4">
                             <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs">{item.category}</span>
                           </td>
-                          {userRole !== 'karyawan' && <td className="py-3 px-4 text-right font-medium text-slate-500">{formatIDR(item.purchasePrice)}</td>}
+                          {userRole !== 'staff' && <td className="py-3 px-4 text-right font-medium text-slate-500">{formatIDR(item.purchasePrice)}</td>}
                           <td className="py-3 px-4 text-right font-bold text-slate-900">{formatIDR(item.sellingPrice)}</td>
                           <td className="py-3 px-4 text-center">
                             <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
@@ -516,13 +516,13 @@ export default function AccessoriesAndSpareparts({
                               {item.stock} unit {isLowStock && '⚠️'}
                             </span>
                           </td>
-                          {userRole !== 'karyawan' && <td className="py-3 px-4 text-center font-extrabold text-indigo-600">{soldQty} pcs</td>}
-                          {userRole !== 'karyawan' && (
+                          {userRole !== 'staff' && <td className="py-3 px-4 text-center font-extrabold text-indigo-600">{soldQty} pcs</td>}
+                          {userRole !== 'staff' && (
                             <td className={`py-3 px-4 text-right font-black ${netProfit > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
                               {netProfit > 0 ? formatIDR(netProfit) : '-'}
                             </td>
                           )}
-                          {userRole !== 'karyawan' && (
+                          {userRole !== 'staff' && (
                             <td className="py-3 px-6 text-center">
                               <div className="flex gap-2 justify-center">
                                 <button onClick={() => startEditAcc(item)} className="p-1 hover:bg-slate-100 text-indigo-600 rounded" title="Edit"><Edit className="h-4 w-4" /></button>

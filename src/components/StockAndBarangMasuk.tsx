@@ -10,7 +10,7 @@ interface StockAndBarangMasukProps {
   onEditBarangMasuk: (item: BarangMasuk) => void;
   onDeleteBarangMasuk: (id: string) => void;
   masterProducts?: MasterProduct[];
-  userRole?: 'atasan' | 'karyawan';
+  userRole?: 'owner' | 'staff';
 }
 
 export default function StockAndBarangMasuk({ 
@@ -20,7 +20,7 @@ export default function StockAndBarangMasuk({
   onEditBarangMasuk,
   onDeleteBarangMasuk,
   masterProducts = [],
-  userRole = 'atasan'
+  userRole = 'owner'
 }: StockAndBarangMasukProps) {
   
   // Format currency helper
@@ -37,7 +37,7 @@ export default function StockAndBarangMasuk({
 
   // Force activeSubTab to 'stok' for employee role
   React.useEffect(() => {
-    if (userRole === 'karyawan' && activeSubTab !== 'stok') {
+    if (userRole === 'staff' && activeSubTab !== 'stok') {
       setActiveSubTab('stok');
     }
   }, [userRole, activeSubTab]);
@@ -296,7 +296,7 @@ export default function StockAndBarangMasuk({
     <div className="space-y-6" id="stock-section-wrapper">
       
       {/* Sub-tab Navigation */}
-      {userRole !== 'karyawan' && (
+      {userRole !== 'staff' && (
         <div className="flex border-b border-slate-100" id="stock-tabs-nav">
           <button
             id="btn-subtab-stok"
@@ -348,7 +348,7 @@ export default function StockAndBarangMasuk({
       {activeSubTab === 'stok' && (
         <div className="space-y-4 animate-fade-in" id="stock-list-view">
           {/* Summary Control Header & Cards */}
-          {userRole !== 'karyawan' && (
+          {userRole !== 'staff' && (
             <>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-2xl border border-slate-100 shadow-3xs gap-3" id="stock-calc-header">
                 <div>
@@ -484,9 +484,9 @@ export default function StockAndBarangMasuk({
                   <tr className="bg-slate-50/70 border-b border-slate-100 text-slate-400 text-xs uppercase font-semibold">
                     <th className="py-4 px-6">Informasi HP & Sinyal</th>
                     <th className="py-4 px-3">Kondisi</th>
-                    {userRole !== 'karyawan' && <th className="py-4 px-3 text-right">Harga Modal Beli</th>}
+                    {userRole !== 'staff' && <th className="py-4 px-3 text-right">Harga Modal Beli</th>}
                     <th className="py-4 px-3 text-right">Harga Jual Toko</th>
-                    {userRole !== 'karyawan' && <th className="py-4 px-3 text-right text-emerald-700">Margin Laba</th>}
+                    {userRole !== 'staff' && <th className="py-4 px-3 text-right text-emerald-700">Margin Laba</th>}
                     <th className="py-4 px-3 text-center">Sisa Stok</th>
                     <th className="py-4 px-6">IMEI Aktif di Toko</th>
                   </tr>
@@ -494,7 +494,7 @@ export default function StockAndBarangMasuk({
                 <tbody className="divide-y divide-slate-50">
                   {filteredProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={userRole === 'karyawan' ? 5 : 7} className="text-center py-12 text-slate-400">
+                      <td colSpan={userRole === 'staff' ? 5 : 7} className="text-center py-12 text-slate-400">
                         Tidak ada kecocokan stok barang ditemukan.
                       </td>
                     </tr>
@@ -533,7 +533,7 @@ export default function StockAndBarangMasuk({
                               {prod.condition}
                             </span>
                           </td>
-                          {userRole !== 'karyawan' && (
+                          {userRole !== 'staff' && (
                             <td className="py-4 px-3 text-right font-medium text-slate-600">
                               {formatIDR(prod.purchasePrice)}
                             </td>
@@ -541,7 +541,7 @@ export default function StockAndBarangMasuk({
                           <td className="py-4 px-3 text-right font-bold text-slate-900">
                             {formatIDR(prod.sellingPrice)}
                           </td>
-                          {userRole !== 'karyawan' && (
+                          {userRole !== 'staff' && (
                             <td className="py-4 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">
                               {formatIDR(profitMargin)}
                               <span className="block text-[9px] text-slate-400 font-medium">

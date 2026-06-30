@@ -16,7 +16,7 @@ interface BcaMutationManagerProps {
   onDeleteMutation: (id: string) => void;
   onSetMutationStatus: (id: string, status: 'Unmatched' | 'Matched' | 'Manual') => void;
   onQuickCreateInvoice: (mutation: BcaMutation) => void; // Shortcut to spawn a sale
-  userRole?: 'atasan' | 'karyawan';
+  userRole?: 'owner' | 'staff';
 }
 
 export default function BcaMutationManager({
@@ -28,7 +28,7 @@ export default function BcaMutationManager({
   onDeleteMutation,
   onSetMutationStatus,
   onQuickCreateInvoice,
-  userRole = 'atasan'
+  userRole = 'owner'
 }: BcaMutationManagerProps) {
 
   const formatIDR = (num: number) => {
@@ -365,7 +365,7 @@ export default function BcaMutationManager({
 
   // Filter list
   const filteredMutations = mutations.filter(m => {
-    if (userRole === 'karyawan' && m.type !== 'CR') {
+    if (userRole === 'staff' && m.type !== 'CR') {
       return false;
     }
     return (
@@ -425,7 +425,7 @@ export default function BcaMutationManager({
 
   // Force subtab to 'daftar' for employees
   useEffect(() => {
-    if (userRole === 'karyawan' && activeSubTab !== 'daftar') {
+    if (userRole === 'staff' && activeSubTab !== 'daftar') {
       setActiveSubTab('daftar');
     }
   }, [userRole, activeSubTab]);
@@ -433,7 +433,7 @@ export default function BcaMutationManager({
   return (
     <div className="space-y-6" id="bca-mutation-wrapper">
       {/* Tab Nav */}
-      {userRole !== 'karyawan' && (
+      {userRole !== 'staff' && (
         <div className="flex border-b border-slate-100" id="bca-tabs-nav">
           <button
             id="btn-bca-tab-daftar"
@@ -478,7 +478,7 @@ export default function BcaMutationManager({
           )}
 
           {/* REAL-TIME KLIKBCA & m-BCA HUB DASHBOARD */}
-          {userRole !== 'karyawan' && (
+          {userRole !== 'staff' && (
             <div className="bg-slate-900 text-slate-100 rounded-3xl border border-slate-800 p-5 md:p-6 shadow-xl space-y-5" id="bca-realtime-dashboard">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-800">
               <div className="flex items-center gap-3">
@@ -852,15 +852,15 @@ export default function BcaMutationManager({
                     <th className="py-4 px-6">Tanggal Mutasi</th>
                     <th className="py-4 px-4">Deskripsi Rekening (Raw)</th>
                     <th className="py-4 px-4 text-right">Nominal Masuk (CR)</th>
-                    {userRole !== 'karyawan' && <th className="py-4 px-4 text-right">Nominal Keluar (DB)</th>}
+                    {userRole !== 'staff' && <th className="py-4 px-4 text-right">Nominal Keluar (DB)</th>}
                     <th className="py-4 px-4 text-center">Status Rekonsiliasi</th>
-                    {userRole !== 'karyawan' && <th className="py-4 px-6 text-center">Tindakan Pembukuan</th>}
+                    {userRole !== 'staff' && <th className="py-4 px-6 text-center">Tindakan Pembukuan</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {filteredMutations.length === 0 ? (
                     <tr>
-                      <td colSpan={userRole === 'karyawan' ? 4 : 6} className="text-center py-12 text-slate-400">
+                      <td colSpan={userRole === 'staff' ? 4 : 6} className="text-center py-12 text-slate-400">
                         Belum ada data mutasi rekening tercatat.
                       </td>
                     </tr>
@@ -881,7 +881,7 @@ export default function BcaMutationManager({
                             <td className="py-4 px-4 text-right font-bold text-emerald-600">
                               {isCredit ? formatIDR(m.amount) : '-'}
                             </td>
-                            {userRole !== 'karyawan' && (
+                            {userRole !== 'staff' && (
                               <td className="py-4 px-4 text-right font-semibold text-rose-500">
                                 {!isCredit ? formatIDR(m.amount) : '-'}
                               </td>
@@ -908,7 +908,7 @@ export default function BcaMutationManager({
                                 </span>
                               )}
                             </td>
-                            {userRole !== 'karyawan' && (
+                            {userRole !== 'staff' && (
                               <td className="py-4 px-6 text-center">
                                 <div className="flex flex-col gap-1.5 items-center justify-center">
                                   {m.status === 'Unmatched' && isCredit && (

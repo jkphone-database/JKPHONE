@@ -62,33 +62,92 @@ import {
   KeyRound,
   Layers,
   ClipboardList,
-  Coins
+  Coins,
+  Lock
 } from 'lucide-react';
 
 export default function App() {
   // Navigation State
   const [activeTab, setActiveTab] = useState<string>('dashboard');
 
-  // User Role State: 'atasan' or 'karyawan'
-  const [userRole, setUserRole] = useState<'atasan' | 'karyawan'>(() => {
-    const params = new URLSearchParams(window.location.search);
-    const roleParam = params.get('role');
-    if (roleParam === 'karyawan') {
-      return 'karyawan';
-    }
-    const storedRole = localStorage.getItem('tokohp_user_role');
-    return (storedRole === 'karyawan' || storedRole === 'atasan') ? storedRole : 'atasan';
+  // Default Access Codes stored in localStorage
+  const [ownerCode, setOwnerCode] = useState(() => localStorage.getItem('tokohp_pass_owner') || '2026');
+  const [staffCode, setStaffCode] = useState(() => localStorage.getItem('tokohp_pass_staff') || '1234');
+
+  // Lock authorization state (session-based)
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
+    const authed = sessionStorage.getItem('tokohp_is_authorized');
+    return authed === 'owner' || authed === 'staff';
   });
 
-  // Redirect employee to permitted tab
+  // User Role State: 'owner' or 'staff'
+  const [userRole, setUserRole] = useState<'owner' | 'staff'>(() => {
+    const authed = sessionStorage.getItem('tokohp_is_authorized');
+    if (authed === 'staff' || authed === 'owner') {
+      return authed as 'owner' | 'staff';
+    }
+    const params = new URLSearchParams(window.location.search);
+    const roleParam = params.get('role');
+    if (roleParam === 'staff' || roleParam === 'karyawan') {
+      return 'staff';
+    }
+    const storedRole = localStorage.getItem('tokohp_user_role');
+    return (storedRole === 'staff' || storedRole === 'karyawan') ? 'staff' : 'owner';
+  });
+
+  // Redirect staff to permitted tab
   useEffect(() => {
-    if (userRole === 'karyawan') {
+    if (userRole === 'staff') {
       const allowedTabs = ['stock', 'acc-sp', 'bca', 'transactions'];
       if (!allowedTabs.includes(activeTab)) {
         setActiveTab('stock');
       }
     }
   }, [userRole, activeTab]);
+
+  // Security Lock form inputs
+  const [passcodeInput, setPasscodeInput] = useState('');
+  const [passcodeError, setPasscodeError] = useState('');
+  const [showPasscode, setShowPasscode] = useState(false);
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+  const [newOwnerCode, setNewOwnerCode] = useState(ownerCode);
+  const [newStaffCode, setNewStaffCode] = useState(staffCode);
+
+  const handleVerifyPasscode = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanInput = passcodeInput.trim();
+    if (cleanInput === ownerCode) {
+      setUserRole('owner');
+      localStorage.setItem('tokohp_user_role', 'owner');
+      sessionStorage.setItem('tokohp_is_authorized', 'owner');
+      setIsAuthorized(true);
+      setPasscodeError('');
+      setPasscodeInput('');
+    } else if (cleanInput === staffCode) {
+      setUserRole('staff');
+      localStorage.setItem('tokohp_user_role', 'staff');
+      sessionStorage.setItem('tokohp_is_authorized', 'staff');
+      setIsAuthorized(true);
+      setPasscodeError('');
+      setPasscodeInput('');
+    } else {
+      setPasscodeError('Kode akses yang Anda masukkan salah!');
+    }
+  };
+
+  const handleSaveSecuritySettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newOwnerCode.trim() || !newStaffCode.trim()) {
+      alert('Kode akses tidak boleh kosong!');
+      return;
+    }
+    localStorage.setItem('tokohp_pass_owner', newOwnerCode.trim());
+    localStorage.setItem('tokohp_pass_staff', newStaffCode.trim());
+    setOwnerCode(newOwnerCode.trim());
+    setStaffCode(newStaffCode.trim());
+    setIsSecurityModalOpen(false);
+    alert('Kode akses khusus berhasil diperbarui dengan aman!');
+  };
 
   // Core Data States
   const [products, setProducts] = useState<PhoneProduct[]>([]);
@@ -1047,6 +1106,78 @@ export default function App() {
     alert('Invoice penjualan instan berhasil dibuat & langsung terverifikasi lunas via Mutasi BCA!');
   };
 
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
+        {/* Decorative ambient blobs */}
+        <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl relative z-10 space-y-6">
+          <div className="flex flex-col items-center text-center space-y-3">
+            <div className="p-4 bg-indigo-950 text-indigo-400 rounded-2xl border border-indigo-900/40 shadow-inner">
+              <KeyRound className="h-8 w-8 animate-pulse" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-white tracking-wide">JK PHONE</h1>
+              <p className="text-xs text-slate-400 font-semibold tracking-wider uppercase mt-1">Gerbang Keamanan Akses Data</p>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-800/80 my-4" />
+
+          <form onSubmit={handleVerifyPasscode} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                Masukkan Kode Akses Khusus
+              </label>
+              <div className="relative">
+                <input
+                  type={showPasscode ? "text" : "password"}
+                  value={passcodeInput}
+                  onChange={(e) => {
+                    setPasscodeInput(e.target.value);
+                    setPasscodeError('');
+                  }}
+                  placeholder="••••••••"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-center text-lg font-mono tracking-widest text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all placeholder:text-slate-700"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasscode(!showPasscode)}
+                  className="absolute right-3.5 top-3.5 text-xs text-slate-400 hover:text-slate-300 transition"
+                >
+                  {showPasscode ? 'Sembunyikan' : 'Lihat'}
+                </button>
+              </div>
+            </div>
+
+            {passcodeError && (
+              <div className="p-3 bg-rose-950/45 border border-rose-900/30 text-rose-300 rounded-xl text-xs font-bold text-center leading-relaxed">
+                ⚠️ {passcodeError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition duration-200 cursor-pointer shadow-lg hover:shadow-indigo-500/10 hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2"
+            >
+              Buka Database & Masuk
+            </button>
+          </form>
+
+          <div className="border-t border-slate-800/50 pt-4 text-center">
+            <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+              Sistem manajemen ini dilindungi enkripsi lokal.<br />
+              Default Owner: <code className="text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded">2026</code> • Default Staff: <code className="text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded">1234</code>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50/70 text-slate-800 flex flex-col font-sans" id="app-root">
       
@@ -1065,78 +1196,57 @@ export default function App() {
 
           {/* Role switcher & Employee link builder */}
           <div className="flex items-center gap-4">
-            {userRole === 'atasan' ? (
-              <div className="flex items-center gap-2">
-                {/* Atasan Badge & Selector */}
-                <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200" id="role-switcher-header">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUserRole('atasan');
-                      localStorage.setItem('tokohp_user_role', 'atasan');
-                    }}
-                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
-                      userRole === 'atasan'
-                        ? 'bg-white text-indigo-700 shadow-3xs'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    👑 Atasan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUserRole('karyawan');
-                      localStorage.setItem('tokohp_user_role', 'karyawan');
-                    }}
-                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
-                      userRole === 'karyawan'
-                        ? 'bg-white text-indigo-700 shadow-3xs'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    👤 Karyawan
-                  </button>
-                </div>
+            <div className="flex items-center gap-2">
+              <span className={`px-3 py-1.5 border rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-3xs ${
+                userRole === 'owner' 
+                  ? 'bg-indigo-50 text-indigo-700 border-indigo-100' 
+                  : 'bg-slate-50 text-slate-700 border-slate-200'
+              }`}>
+                {userRole === 'owner' ? '👑 Owner' : '👤 Staff (Akses Terbatas)'}
+              </span>
 
-                {/* Salin Link Karyawan Button */}
+              {/* Salin Link Staff Button (only for Owner) */}
+              {userRole === 'owner' && (
                 <button
                   onClick={() => {
-                    const employeeUrl = window.location.origin + window.location.pathname + "?role=karyawan";
-                    navigator.clipboard.writeText(employeeUrl);
-                    alert(`Link akses khusus karyawan berhasil disalin:\n\n${employeeUrl}\n\nKaryawan hanya akan dapat melihat sisa stok HP, sisa stok aksesoris, & mutasi BCA uang masuk tanpa harga modal atau laba rugi.`);
+                    const staffUrl = window.location.origin + window.location.pathname + "?role=staff";
+                    navigator.clipboard.writeText(staffUrl);
+                    alert(`Link akses khusus staff berhasil disalin:\n\n${staffUrl}\n\nStaff hanya akan dapat melihat sisa stok HP, sisa stok aksesoris, & mutasi BCA uang masuk tanpa harga modal atau laba rugi.`);
                   }}
-                  className="px-3 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100 font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer"
-                  title="Salin Link Akses Khusus Karyawan"
+                  className="px-3 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-100 font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer"
+                  title="Salin Link Akses Khusus Staff"
                 >
-                  <Sparkles className="h-3.5 w-3.5" /> Salin Link Karyawan
+                  <Sparkles className="h-3.5 w-3.5" /> Salin Link Staff
                 </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                {/* Employee Locked Badge */}
-                <span className="bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1.5">
-                  👤 Mode Karyawan (Akses Terbatas)
-                </span>
-                
-                {/* Switch back option (only if NOT locked by URL parameter) */}
-                {!window.location.search.includes('role=karyawan') && (
-                  <button
-                    onClick={() => {
-                      setUserRole('atasan');
-                      localStorage.setItem('tokohp_user_role', 'atasan');
-                    }}
-                    className="text-xs text-slate-400 hover:text-indigo-600 underline font-bold cursor-pointer"
-                  >
-                    Kembali ke Atasan
-                  </button>
-                )}
-              </div>
-            )}
+              )}
+
+              {/* Lock Button to Lock the Session */}
+              <button
+                onClick={() => {
+                  sessionStorage.removeItem('tokohp_is_authorized');
+                  setIsAuthorized(false);
+                }}
+                className="p-2 hover:bg-slate-100 text-slate-400 hover:text-indigo-600 rounded-xl transition cursor-pointer flex items-center gap-1 text-xs font-semibold"
+                title="Kunci / Keluar Sesi"
+              >
+                <Lock className="h-4 w-4" /> <span className="hidden lg:inline">Lock</span>
+              </button>
+            </div>
 
             {/* Action Tools: Backup & Cadangan (Only for Owner) */}
-            {userRole !== 'karyawan' && (
+            {userRole === 'owner' && (
               <div className="flex items-center gap-1.5 border-l border-slate-200 pl-4">
+                <button
+                  onClick={() => {
+                    setNewOwnerCode(ownerCode);
+                    setNewStaffCode(staffCode);
+                    setIsSecurityModalOpen(true);
+                  }}
+                  className="p-2 hover:bg-slate-50 text-slate-500 hover:text-indigo-600 rounded-xl transition cursor-pointer flex items-center gap-1 text-xs font-semibold"
+                  title="Ubah Kode Akses Khusus"
+                >
+                  <KeyRound className="h-4 w-4" /> <span className="hidden lg:inline">Keamanan</span>
+                </button>
                 <button
                   id="btn-seed-reset"
                   onClick={handleResetToSeeds}
@@ -1175,7 +1285,7 @@ export default function App() {
         {/* SIDEBAR NAVIGATION BAR */}
         <nav className="w-full md:w-64 flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-x-visible pb-3 md:pb-0 scrollbar-none" id="sidebar-nav">
           {/* 1. Ringkasan Toko */}
-          {userRole !== 'karyawan' && (
+          {userRole !== 'staff' && (
             <button
               id="nav-dashboard"
               onClick={() => setActiveTab('dashboard')}
@@ -1190,7 +1300,7 @@ export default function App() {
           )}
           
           {/* 2. Master Barang & Historis Barang */}
-          {userRole !== 'karyawan' && (
+          {userRole !== 'staff' && (
             <button
               id="nav-master-catalog"
               onClick={() => setActiveTab('master-catalog')}
@@ -1214,7 +1324,7 @@ export default function App() {
                 : 'text-slate-500 hover:bg-white hover:text-slate-800'
             }`}
           >
-            <Smartphone className="h-4.5 w-4.5" /> {userRole === 'karyawan' ? 'Sisa Stok HP' : 'Stok HP & Barang Masuk'}
+            <Smartphone className="h-4.5 w-4.5" /> {userRole === 'staff' ? 'Sisa Stok HP' : 'Stok HP & Barang Masuk'}
           </button>
 
           {/* 4. Penjualan & Barang Keluar */}
@@ -1227,7 +1337,7 @@ export default function App() {
                 : 'text-slate-500 hover:bg-white hover:text-slate-800'
             }`}
           >
-            <ShoppingBag className="h-4.5 w-4.5" /> {userRole === 'karyawan' ? 'Penjualan HP (Kasir)' : 'Penjualan & Barang Keluar'}
+            <ShoppingBag className="h-4.5 w-4.5" /> {userRole === 'staff' ? 'Penjualan HP (Kasir)' : 'Penjualan & Barang Keluar'}
           </button>
 
           {/* 5. Stok Aksesoris */}
@@ -1240,11 +1350,11 @@ export default function App() {
                 : 'text-slate-500 hover:bg-white hover:text-slate-800'
             }`}
           >
-            <Layers className="h-4.5 w-4.5" /> {userRole === 'karyawan' ? 'Sisa Stok Aksesoris' : 'Stok Aksesoris'}
+            <Layers className="h-4.5 w-4.5" /> {userRole === 'staff' ? 'Sisa Stok Aksesoris' : 'Stok Aksesoris'}
           </button>
 
           {/* 7. Jasa Unlock IMEI */}
-          {userRole !== 'karyawan' && (
+          {userRole !== 'staff' && (
             <button
               id="nav-unlock"
               onClick={() => setActiveTab('unlock')}
@@ -1259,7 +1369,7 @@ export default function App() {
           )}
 
           {/* 8. Pengeluaran Operasional */}
-          {userRole !== 'karyawan' && (
+          {userRole !== 'staff' && (
             <button
               id="nav-expenses"
               onClick={() => setActiveTab('expenses')}
@@ -1284,9 +1394,9 @@ export default function App() {
             }`}
           >
             <div className="flex items-center gap-3">
-              <ArrowRightLeft className="h-4.5 w-4.5" /> {userRole === 'karyawan' ? 'Mutasi BCA Uang Masuk' : 'Laporan Mutasi BCA'}
+              <ArrowRightLeft className="h-4.5 w-4.5" /> {userRole === 'staff' ? 'Mutasi BCA Uang Masuk' : 'Laporan Mutasi BCA'}
             </div>
-            {userRole !== 'karyawan' && bcaMutations.filter(m => m.type === 'CR' && m.status === 'Unmatched').length > 0 && (
+            {userRole !== 'staff' && bcaMutations.filter(m => m.type === 'CR' && m.status === 'Unmatched').length > 0 && (
               <span className="bg-amber-400 text-amber-950 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
                 {bcaMutations.filter(m => m.type === 'CR' && m.status === 'Unmatched').length}
               </span>
@@ -1294,7 +1404,7 @@ export default function App() {
           </button>
 
           {/* 10. Laporan Keuangan */}
-          {userRole !== 'karyawan' && (
+          {userRole !== 'staff' && (
             <button
               id="nav-finance-report"
               onClick={() => setActiveTab('finance-report')}
@@ -1532,6 +1642,75 @@ export default function App() {
                 disabled={!quickSaleProdId || !quickSaleImei}
               >
                 <Sparkles className="h-4 w-4" /> Proses Penjualan Lunas
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* SECURITY ACCESS CODE CONFIGURATION MODAL */}
+      {isSecurityModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="security-modal">
+          <form onSubmit={handleSaveSecuritySettings} className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden flex flex-col">
+            <div className="p-4 bg-indigo-600 text-white flex justify-between items-center">
+              <span className="font-bold text-xs tracking-wide uppercase flex items-center gap-1.5">
+                <KeyRound className="h-4 w-4" /> Pengaturan Kode Akses Khusus
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsSecurityModalOpen(false)}
+                className="text-white hover:bg-white/10 p-1 rounded-full transition cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-slate-50 border border-slate-150 p-4 rounded-xl space-y-1 text-xs text-slate-600 leading-relaxed">
+                <p>Sebagai <strong>Owner</strong>, Anda dapat merubah kode akses khusus yang digunakan untuk membuka sistem manajemen ini.</p>
+                <p className="text-indigo-600 font-semibold mt-1">Sesi akan otomatis terkunci kembali saat Anda menekan tombol Lock di pojok kanan atas.</p>
+              </div>
+
+              {/* Owner Access Code input */}
+              <div>
+                <label className="block text-xs font-semibold uppercase text-slate-500 mb-1.5">Kode Akses Owner (Default: 2026)</label>
+                <input
+                  type="text"
+                  value={newOwnerCode}
+                  onChange={(e) => setNewOwnerCode(e.target.value)}
+                  placeholder="2026"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  required
+                />
+              </div>
+
+              {/* Staff Access Code input */}
+              <div>
+                <label className="block text-xs font-semibold uppercase text-slate-500 mb-1.5">Kode Akses Staff (Default: 1234)</label>
+                <input
+                  type="text"
+                  value={newStaffCode}
+                  onChange={(e) => setNewStaffCode(e.target.value)}
+                  placeholder="1234"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsSecurityModalOpen(false)}
+                className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-xs text-slate-500 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+              >
+                Simpan & Perbarui Kode
               </button>
             </div>
           </form>
