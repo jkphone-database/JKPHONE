@@ -114,17 +114,6 @@ export default function App() {
   const [newOwnerCode, setNewOwnerCode] = useState(ownerCode);
   const [newStaffCode, setNewStaffCode] = useState(staffCode);
 
-  const [isClearModalOpen, setIsClearModalOpen] = useState(false);
-  const [clearOptions, setClearOptions] = useState({
-    products: true,
-    sales: true,
-    accessories: true,
-    unlock: true,
-    expenses: true,
-    mutations: false,
-    master: false
-  });
-
   const handleVerifyPasscode = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanInput = passcodeInput.trim();
@@ -1070,66 +1059,23 @@ export default function App() {
     }
   };
 
-  const handleClearSelectedData = (e: React.FormEvent) => {
-    e.preventDefault();
-    const selectedKeys = Object.entries(clearOptions)
-      .filter(([_, value]) => value)
-      .map(([key]) => {
-        switch(key) {
-          case 'products': return 'Stok HP & Barang Masuk';
-          case 'sales': return 'Penjualan & Barang Keluar';
-          case 'accessories': return 'Stok Aksesoris & Sparepart';
-          case 'unlock': return 'Jasa Unlock IMEI & Servis';
-          case 'expenses': return 'Pengeluaran Operasional';
-          case 'mutations': return 'Mutasi Bank BCA';
-          case 'master': return 'Katalog Master Produk';
-          default: return '';
-        }
-      })
-      .filter(Boolean);
-
-    if (selectedKeys.length === 0) {
-      alert('Silakan pilih setidaknya satu kategori data untuk dibersihkan!');
-      return;
-    }
-
-    if (confirm(`Apakah Anda yakin ingin MENGHAPUS secara permanen kategori data berikut:\n\n- ${selectedKeys.join('\n- ')}\n\nTindakan ini tidak dapat dibatalkan!`)) {
-      if (clearOptions.products) {
-        saveProducts([]);
-        saveBarangMasuk([]);
-      }
-      if (clearOptions.sales) {
-        saveBarangKeluar([]);
-        saveTransactions([]);
-      }
-      if (clearOptions.accessories) {
-        saveAccessories([]);
-        saveSpareparts([]);
-        saveAccSales([]);
-      }
-      if (clearOptions.unlock) {
-        saveUnlockRequests([]);
-        saveServiceNotes([]);
-      }
-      if (clearOptions.expenses) {
-        saveExpenses([]);
-      }
-      if (clearOptions.mutations) {
-        saveMutations([]);
-      }
-      if (clearOptions.master) {
-        saveMasterProducts([]);
-      }
-
-      alert('Kategori data yang dipilih berhasil dibersihkan!');
-      setIsClearModalOpen(false);
+  const handleClearAllData = () => {
+    if (confirm('Apakah Anda yakin ingin MENGHAPUS/BERSIHKAN SEMUA DATA dari database toko Anda? Tindakan ini akan mengosongkan seluruh data stok HP, barang masuk, barang keluar, riwayat penjualan, pengeluaran, mutasi bank, aksesoris, dll. secara permanen.')) {
+      saveProducts([]);
+      saveBarangMasuk([]);
+      saveBarangKeluar([]);
+      saveExpenses([]);
+      saveTransactions([]);
+      saveMutations([]);
+      saveAccessories([]);
+      saveSpareparts([]);
+      saveAccSales([]);
+      saveUnlockRequests([]);
+      saveServiceNotes([]);
+      saveMasterProducts([]);
+      alert('Semua data berhasil dibersihkan! Database Anda sekarang kosong dan siap digunakan dari awal.');
       window.location.reload();
     }
-  };
-
-  const handleClearAllData = () => {
-    // Open the selective clear modal
-    setIsClearModalOpen(true);
   };
 
 
@@ -1324,22 +1270,6 @@ export default function App() {
                   <KeyRound className="h-4 w-4" /> <span className="hidden lg:inline">Keamanan</span>
                 </button>
                  <button
-                  id="btn-seed-reset"
-                  onClick={handleResetToSeeds}
-                  className="p-2 hover:bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-xl transition cursor-pointer"
-                  title="Reset ke Contoh Awal"
-                >
-                  <RefreshCw className="h-4.5 w-4.5" />
-                </button>
-                <button
-                  id="btn-clear-all"
-                  onClick={handleClearAllData}
-                  className="p-2 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition cursor-pointer"
-                  title="Bersihkan Semua Data (Kosongkan)"
-                >
-                  <Trash2 className="h-4.5 w-4.5" />
-                </button>
-                <button
                   id="btn-backup-export"
                   onClick={handleExportBackup}
                   className="p-2 hover:bg-slate-50 text-slate-500 hover:text-indigo-600 rounded-xl transition cursor-pointer flex items-center gap-1 text-xs font-semibold"
@@ -1801,144 +1731,6 @@ export default function App() {
         </div>
       )}
 
-      {/* CLEAR SELECTIVE DATA MODAL */}
-      {isClearModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="clear-data-modal">
-          <form onSubmit={handleClearSelectedData} className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden flex flex-col">
-            <div className="p-4 bg-rose-600 text-white flex justify-between items-center">
-              <span className="font-bold text-xs tracking-wide uppercase flex items-center gap-1.5">
-                <Trash2 className="h-4 w-4" /> Bersihkan Data Terpilih
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsClearModalOpen(false)}
-                className="text-white hover:bg-white/10 p-1 rounded-full transition cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="bg-rose-50 border border-rose-100 p-4 rounded-xl space-y-1 text-xs text-rose-800 leading-relaxed">
-                <p className="font-bold">⚠️ Perhatian Tindakan Permanen!</p>
-                <p>Silakan centang kategori data yang ingin Anda bersihkan (kosongkan). Data yang dipilih akan dihapus secara permanen dari penyimpanan lokal browser Anda.</p>
-              </div>
-
-              {/* Selection Options List */}
-              <div className="space-y-3">
-                <label className="flex items-start gap-3 p-3 hover:bg-slate-50 border border-slate-100 rounded-xl cursor-pointer transition">
-                  <input
-                    type="checkbox"
-                    checked={clearOptions.products}
-                    onChange={(e) => setClearOptions({ ...clearOptions, products: e.target.checked })}
-                    className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <div>
-                    <div className="text-xs font-bold text-slate-800">Stok HP & Barang Masuk</div>
-                    <div className="text-[10px] text-slate-400">Menghapus daftar stok HP serta riwayat mutasi barang masuk.</div>
-                  </div>
-                </label>
-
-                <label className="flex items-start gap-3 p-3 hover:bg-slate-50 border border-slate-100 rounded-xl cursor-pointer transition">
-                  <input
-                    type="checkbox"
-                    checked={clearOptions.sales}
-                    onChange={(e) => setClearOptions({ ...clearOptions, sales: e.target.checked })}
-                    className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <div>
-                    <div className="text-xs font-bold text-slate-800">Penjualan & Barang Keluar</div>
-                    <div className="text-[10px] text-slate-400">Menghapus semua nota invoice transaksi dan riwayat unit keluar.</div>
-                  </div>
-                </label>
-
-                <label className="flex items-start gap-3 p-3 hover:bg-slate-50 border border-slate-100 rounded-xl cursor-pointer transition">
-                  <input
-                    type="checkbox"
-                    checked={clearOptions.accessories}
-                    onChange={(e) => setClearOptions({ ...clearOptions, accessories: e.target.checked })}
-                    className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <div>
-                    <div className="text-xs font-bold text-slate-800">Stok Aksesoris & Sparepart</div>
-                    <div className="text-[10px] text-slate-400">Menghapus data aksesoris, suku cadang, serta riwayat transaksinya.</div>
-                  </div>
-                </label>
-
-                <label className="flex items-start gap-3 p-3 hover:bg-slate-50 border border-slate-100 rounded-xl cursor-pointer transition">
-                  <input
-                    type="checkbox"
-                    checked={clearOptions.unlock}
-                    onChange={(e) => setClearOptions({ ...clearOptions, unlock: e.target.checked })}
-                    className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <div>
-                    <div className="text-xs font-bold text-slate-800">Jasa Unlock IMEI & Servis</div>
-                    <div className="text-[10px] text-slate-400">Menghapus daftar pengajuan unlock IMEI dan nota servis HP.</div>
-                  </div>
-                </label>
-
-                <label className="flex items-start gap-3 p-3 hover:bg-slate-50 border border-slate-100 rounded-xl cursor-pointer transition">
-                  <input
-                    type="checkbox"
-                    checked={clearOptions.expenses}
-                    onChange={(e) => setClearOptions({ ...clearOptions, expenses: e.target.checked })}
-                    className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <div>
-                    <div className="text-xs font-bold text-slate-800">Pengeluaran Operasional</div>
-                    <div className="text-[10px] text-slate-400">Menghapus semua catatan pengeluaran rutin toko.</div>
-                  </div>
-                </label>
-
-                <div className="border-t border-slate-100 my-2 pt-2" />
-
-                <label className="flex items-start gap-3 p-3 hover:bg-slate-50 border border-slate-100 rounded-xl cursor-pointer transition">
-                  <input
-                    type="checkbox"
-                    checked={clearOptions.mutations}
-                    onChange={(e) => setClearOptions({ ...clearOptions, mutations: e.target.checked })}
-                    className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <div>
-                    <div className="text-xs font-bold text-slate-600">Mutasi Bank BCA (Opsional)</div>
-                    <div className="text-[10px] text-slate-400 text-slate-400/80">Menghapus semua riwayat mutasi rekening bank terunggah.</div>
-                  </div>
-                </label>
-
-                <label className="flex items-start gap-3 p-3 hover:bg-slate-50 border border-slate-100 rounded-xl cursor-pointer transition">
-                  <input
-                    type="checkbox"
-                    checked={clearOptions.master}
-                    onChange={(e) => setClearOptions({ ...clearOptions, master: e.target.checked })}
-                    className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <div>
-                    <div className="text-xs font-bold text-slate-600">Katalog Master Produk (Opsional)</div>
-                    <div className="text-[10px] text-slate-400 text-slate-400/80">Menghapus data katalog template spesifikasi HP.</div>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setIsClearModalOpen(false)}
-                className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-xs text-slate-500 hover:bg-slate-100 transition cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-              >
-                <Trash2 className="h-4 w-4" /> Hapus Permanen
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
     </div>
   );
 }
