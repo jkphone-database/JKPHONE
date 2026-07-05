@@ -114,6 +114,8 @@ export default function App() {
   const [newOwnerCode, setNewOwnerCode] = useState(ownerCode);
   const [newStaffCode, setNewStaffCode] = useState(staffCode);
 
+
+
   const handleVerifyPasscode = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanInput = passcodeInput.trim();
@@ -1040,43 +1042,7 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  const handleResetToSeeds = () => {
-    if (confirm('Apakah Anda yakin ingin menyetel ulang database JK PHONE Anda kembali ke template contoh awal? Semua data input baru Anda akan terhapus.')) {
-      saveProducts(initialProducts);
-      saveBarangMasuk(initialBarangMasuk);
-      saveBarangKeluar(initialBarangKeluar);
-      saveExpenses(initialExpenses);
-      saveTransactions(initialTransactions);
-      saveMutations(initialBcaMutations);
-      saveAccessories(initialAccessories);
-      saveSpareparts(initialSpareparts);
-      saveAccSales(initialAccSales);
-      saveUnlockRequests(initialUnlockRequests);
-      saveServiceNotes(initialServiceNotes);
-      saveMasterProducts(initialMasterProducts);
-      alert('Database JK PHONE berhasil disetel ulang ke kondisi awal!');
-      window.location.reload();
-    }
-  };
 
-  const handleClearAllData = () => {
-    if (confirm('Apakah Anda yakin ingin MENGHAPUS/BERSIHKAN SEMUA DATA dari database toko Anda? Tindakan ini akan mengosongkan seluruh data stok HP, barang masuk, barang keluar, riwayat penjualan, pengeluaran, mutasi bank, aksesoris, dll. secara permanen.')) {
-      saveProducts([]);
-      saveBarangMasuk([]);
-      saveBarangKeluar([]);
-      saveExpenses([]);
-      saveTransactions([]);
-      saveMutations([]);
-      saveAccessories([]);
-      saveSpareparts([]);
-      saveAccSales([]);
-      saveUnlockRequests([]);
-      saveServiceNotes([]);
-      saveMasterProducts([]);
-      alert('Semua data berhasil dibersihkan! Database Anda sekarang kosong dan siap digunakan dari awal.');
-      window.location.reload();
-    }
-  };
 
 
   // Quick Sale generation handler from bank mutation modal
@@ -1269,22 +1235,7 @@ export default function App() {
                 >
                   <KeyRound className="h-4 w-4" /> <span className="hidden lg:inline">Keamanan</span>
                 </button>
-                 <button
-                  id="btn-seed-reset"
-                  onClick={handleResetToSeeds}
-                  className="p-2 hover:bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-xl transition cursor-pointer"
-                  title="Reset ke Contoh Awal"
-                >
-                  <RefreshCw className="h-4.5 w-4.5" />
-                </button>
-                <button
-                  id="btn-clear-all"
-                  onClick={handleClearAllData}
-                  className="p-2 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition cursor-pointer"
-                  title="Bersihkan Semua Data (Kosongkan)"
-                >
-                  <Trash2 className="h-4.5 w-4.5" />
-                </button>
+
                 <button
                   id="btn-backup-export"
                   onClick={handleExportBackup}
@@ -1746,6 +1697,8 @@ export default function App() {
           </form>
         </div>
       )}
+
+
 
     </div>
   );
