@@ -1270,6 +1270,22 @@ export default function App() {
                   <KeyRound className="h-4 w-4" /> <span className="hidden lg:inline">Keamanan</span>
                 </button>
                  <button
+                  id="btn-seed-reset"
+                  onClick={handleResetToSeeds}
+                  className="p-2 hover:bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-xl transition cursor-pointer"
+                  title="Reset ke Contoh Awal"
+                >
+                  <RefreshCw className="h-4.5 w-4.5" />
+                </button>
+                <button
+                  id="btn-clear-all"
+                  onClick={handleClearAllData}
+                  className="p-2 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition cursor-pointer"
+                  title="Bersihkan Semua Data (Kosongkan)"
+                >
+                  <Trash2 className="h-4.5 w-4.5" />
+                </button>
+                <button
                   id="btn-backup-export"
                   onClick={handleExportBackup}
                   className="p-2 hover:bg-slate-50 text-slate-500 hover:text-indigo-600 rounded-xl transition cursor-pointer flex items-center gap-1 text-xs font-semibold"
